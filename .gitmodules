@@ -2,3 +2,6 @@
 	path = vendor/SDL
 	url = https://github.com/libsdl-org/SDL.git
 	branch = main
+[submodule "SDL"]
+	path = SDL
+	url = https://github.com/libsdl-org/SDL.git
