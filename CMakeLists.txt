@@ -13,15 +13,19 @@ file(
     "src/*.hpp"
 )
 
+find_package(Vulkan REQUIRED FATAL_ERROR)
+add_subdirectory(vendor/SDL EXCLUDE_FROM_ALL)
+
 add_executable(vulkan-triangle ${source-files})
 
-target_include_directories (
-    vulkan-triangle PUBLIC
-    "../Vendor/SDL/include/"
+target_include_directories(
+    vulkan-triangle PUBLIC 
+    ../vendor/SDL/include/ 
+    C:/VulkanSDK/1.3.216.0/Include/
 )
 
-target_link_libraries
-(
+target_link_libraries(
     vulkan-triangle PRIVATE
-    SDL3
+    SDL3::SDL3
+    Vulkan::Vulkan
 )
