@@ -20,8 +20,9 @@ add_executable(vulkan-triangle ${source-files})
 
 target_include_directories(
     vulkan-triangle PUBLIC 
-    ../vendor/SDL/include/ 
-    C:/VulkanSDK/1.3.216.0/Include/
+    vendor/SDL/include/ 
+    vendor/glm/ 
+    C:/VulkanSDK/1.3.216.0/Include/ 
 )
 
 target_link_libraries(
