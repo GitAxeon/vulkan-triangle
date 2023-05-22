@@ -34,7 +34,7 @@ private:
     {
         #ifdef DEBUG
             m_OutputStream << category << ": ";
-            ((m_OutputStream << std::forward<Args>(args) << " "), ...) << "\n";
+            ((m_OutputStream << std::forward<Args>(args)), ...) << "\n";
         #endif
     }
 
