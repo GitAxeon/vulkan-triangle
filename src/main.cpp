@@ -10,6 +10,7 @@
 #include <memory>
 #include <string>
 #include <vector>
+#include <array>
 
 static LoggerBase<std::ostream> Log(std::cout);
 
@@ -119,9 +120,21 @@ class VulkanContext
 public:
     VulkanContext()
         : m_Instance(nullptr) {}
+    
+    ~VulkanContext()
+    {
+        Log.Info("Destructed VulkanContext");
+        vkDestroyInstance(m_Instance, nullptr);
+    }
 
     uint32_t Init(const std::string& applicationName)
     {
+        if(m_EnableValidationLayers && !CheckValidationLayerSupport())
+        {
+            Log.Error("Validation layers requested but not available");
+            return VK_ERROR_LAYER_NOT_PRESENT; 
+        }
+
         VkApplicationInfo appInfo{};
         appInfo.sType = VK_STRUCTURE_TYPE_APPLICATION_INFO;
         appInfo.pApplicationName = applicationName.c_str();
@@ -130,63 +143,174 @@ public:
         appInfo.engineVersion = VK_MAKE_VERSION(1, 0, 0);
         appInfo.apiVersion = VK_API_VERSION_1_0;
 
+        std::vector<const char*> SDLExtensions;
+        VkResult extensionResult = GetInstanceExtensions(SDLExtensions);
+
+        if(extensionResult != VK_SUCCESS)
+        {
+            return extensionResult;
+        }
+
+        VkInstanceCreateInfo createInfo {};
+        createInfo.sType = VK_STRUCTURE_TYPE_INSTANCE_CREATE_INFO;
+        createInfo.pApplicationInfo = &appInfo;
+        createInfo.enabledExtensionCount = SDLExtensions.size();
+        createInfo.ppEnabledExtensionNames = SDLExtensions.data();
+
+        if(m_EnableValidationLayers)
+        {
+            createInfo.enabledLayerCount = static_cast<uint32_t>(m_ValidationLayers.size());
+            createInfo.ppEnabledLayerNames = m_ValidationLayers.data();
+        }
+        else
+        {
+            createInfo.enabledLayerCount = 0;
+            createInfo.ppEnabledLayerNames = nullptr;
+        }
+
+        VkResult instanceResult = vkCreateInstance(&createInfo, nullptr, &m_Instance);
+
+        if(instanceResult == VK_SUCCESS)
+        {
+            Log.Info("Created Vulkan instance");
+        }
+        else
+        {
+            Log.Error("Failed to create Vulkan instance ", "VkResult: ", instanceResult);
+        }
+        
+        return instanceResult;
+    }
+
+    void EnableValidationLayers()
+    {
+        m_EnableValidationLayers = true;
+    }
+
+private:
+    VkResult GetInstanceExtensions(std::vector<const char*>& extensions)
+    {
         uint32_t SDLExtensionCount = 0;
         SDL_bool extensionResult = SDL_Vulkan_GetInstanceExtensions(&SDLExtensionCount, nullptr);
 
         if(extensionResult == SDL_FALSE)
         {
             Log.Error("Failed to retrieve necessary Vulkan extensions");
-            return VK_ERROR_INITIALIZATION_FAILED;
+            return VK_ERROR_EXTENSION_NOT_PRESENT;
         }
         else
         {
-            Log.Info("Retrieved number of necessary extensions: ", SDLExtensionCount);
+            Log.Info("Retrieved ", SDLExtensionCount, " extensions");
         }
 
-        std::vector<const char*> SDLExtensions;
-        SDLExtensions.resize(SDLExtensionCount);
+        extensions.resize(SDLExtensionCount);
 
-        extensionResult = SDL_Vulkan_GetInstanceExtensions(&SDLExtensionCount, SDLExtensions.data());    
+        extensionResult = SDL_Vulkan_GetInstanceExtensions(&SDLExtensionCount, extensions.data()); 
         
         if(extensionResult == SDL_FALSE)
         {
             Log.Error("Failed to retrieve necessary Vulkan extensions");
-            return VK_ERROR_INITIALIZATION_FAILED;
+            return VK_ERROR_EXTENSION_NOT_PRESENT;
         }
-        else
-        {
-            Log.Info("Retrieved names of the extensions");
 
-            for(size_t i = 0; i < SDLExtensionCount; i++)
+        if(m_EnableValidationLayers)
+        {
+            Log.Info("Included debug messenger extension");
+            extensions.push_back(VK_EXT_DEBUG_UTILS_EXTENSION_NAME);
+        }
+        
+        for(size_t i = 0; i < extensions.size(); i++)
+        {
+            Log.Info(i + 1, ": ", extensions[i]);
+        }
+
+        return VK_SUCCESS;
+    }
+
+    bool CheckValidationLayerSupport() const
+    {
+        uint32_t layerCount = 0;
+        vkEnumerateInstanceLayerProperties(&layerCount, nullptr);
+
+        std::vector<VkLayerProperties> availableLayers(layerCount);
+        vkEnumerateInstanceLayerProperties(&layerCount, availableLayers.data());
+
+        for(auto layerName : m_ValidationLayers)
+        {
+            bool layerFound = false;
+            
+            for(const auto& layerProperties : availableLayers)
             {
-                Log.Info(i, ": ", SDLExtensions[i]);
+                if(strcmp(layerName, layerProperties.layerName) == 0)
+                {
+                    Log.Info("Found validation layer \"", layerName, "\"");
+                    layerFound = true;
+                    break;
+                }
+            }
+
+            if(!layerFound)
+            {
+                Log.Error("Couldn't find validation layer \"", layerName, "\"");
+                return false;
             }
         }
-        
-        VkInstanceCreateInfo createInfo {};
-        createInfo.sType = VK_STRUCTURE_TYPE_INSTANCE_CREATE_INFO;
-        createInfo.pApplicationInfo = &appInfo;
-        createInfo.enabledLayerCount = 0;
-        createInfo.ppEnabledLayerNames = nullptr;
-        createInfo.enabledExtensionCount = SDLExtensionCount;
-        createInfo.ppEnabledExtensionNames = SDLExtensions.data();
 
-        VkResult result = vkCreateInstance(&createInfo, nullptr, &m_Instance);
+        return true;
+    }
 
-        if(result == VK_SUCCESS)
+    void SetupDebugMessenger()
+    {
+        if(!m_EnableValidationLayers) return;
+
+        VkDebugUtilsMessengerCreateInfoEXT createInfo{};
+        createInfo.sType = VK_STRUCTURE_TYPE_DEBUG_UTILS_MESSENGER_CREATE_INFO_EXT;
+        createInfo.messageSeverity = VK_DEBUG_UTILS_MESSAGE_SEVERITY_VERBOSE_BIT_EXT | VK_DEBUG_UTILS_MESSAGE_SEVERITY_WARNING_BIT_EXT | VK_DEBUG_UTILS_MESSAGE_SEVERITY_ERROR_BIT_EXT;
+        createInfo.messageType = VK_DEBUG_UTILS_MESSAGE_TYPE_GENERAL_BIT_EXT | VK_DEBUG_UTILS_MESSAGE_TYPE_VALIDATION_BIT_EXT | VK_DEBUG_UTILS_MESSAGE_TYPE_PERFORMANCE_BIT_EXT;
+        createInfo.pfnUserCallback = DebugCallback;
+        createInfo.pUserData = nullptr;
+    }
+
+    VkResult CreateDebugUtilsMessengerEXT(
+        VkInstance instance,
+        const VkDebugUtilsMessengerCreateInfoEXT* pCreateInfo,
+        const VkAllocationCallbacks* pAllocator,
+        VkDebugUtilsMessengerEXT* pDebugMessenger)
+    {
+        auto func = (PFN_vkCreateDebugUtilsMessengerEXT) vkGetInstanceProcAddr(instance, "vkCreateDebugUtilsMessengerEXT");
+
+        if(func != nullptr)
         {
-            Log.Info("Created Vulkan instance");
+            return func(instance, pCreateInfo, pAllocator, pDebugMessenger);
         }
         else
         {
-            Log.Error("Failed to create Vulkan instance ", "VkResult: ", result);
+            return VK_ERROR_EXTENSION_NOT_PRESENT;
         }
-        
-        return result;
+    }
+
+    static VKAPI_ATTR VkBool32 VKAPI_CALL DebugCallback(
+        VkDebugUtilsMessageSeverityFlagBitsEXT messageSeverity,
+        VkDebugUtilsMessageTypeFlagsEXT messageType, 
+        const VkDebugUtilsMessengerCallbackDataEXT* pCallbackData,
+        void* pUserData)
+    {
+        if(messageSeverity >= VK_DEBUG_UTILS_MESSAGE_SEVERITY_WARNING_BIT_EXT)
+        {
+            Log.Error("Vulkan: ", pCallbackData->pMessage);
+        }
+        return VK_FALSE;
     }
 
 private:
     VkInstance m_Instance;
+    bool m_EnableValidationLayers = false;
+    VkDebugUtilsMessengerEXT m_DebugMessenger;
+
+    std::array<const char*, 1> m_ValidationLayers = 
+    {
+        "VK_LAYER_KHRONOS_validation"
+    };
 };
 
 int main(int argc, char* argv[])
@@ -206,11 +330,8 @@ int main(int argc, char* argv[])
     WindowInfo info("Vulkan-triangle", 720, 300);
     Window window(info);
 
-    uint32_t extensionCount = 0;
-    vkEnumerateInstanceExtensionProperties(nullptr, &extensionCount, nullptr);
-    Log.Info("Vulkan extension count: ", extensionCount);
-
     VulkanContext context;
+    context.EnableValidationLayers();
     
     if(context.Init(info.Title) == VK_SUCCESS)
     {
