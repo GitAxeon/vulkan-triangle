@@ -6,13 +6,19 @@
 #include <glm/vec2.hpp>
 #include <glm/mat2x2.hpp>
 
+#include <array>
 #include <iostream>
 #include <memory>
+#include <optional>
 #include <string>
 #include <vector>
-#include <array>
 
 static LoggerBase<std::ostream> Log(std::cout);
+
+struct QueueFamilyIndices
+{
+    std::optional<uint32_t> GraphicsFamily;
+};
 
 struct WindowInfo
 {
@@ -123,6 +129,12 @@ public:
     
     ~VulkanContext()
     {
+        if(m_EnableValidationLayers)
+        {
+            Log.Info("Destructed debug messenger");
+            DestroyDebugUtilsMessengerEXT(m_Instance, m_DebugMessenger, nullptr);
+        }
+
         Log.Info("Destructed VulkanContext");
         vkDestroyInstance(m_Instance, nullptr);
     }
@@ -157,10 +169,14 @@ public:
         createInfo.enabledExtensionCount = SDLExtensions.size();
         createInfo.ppEnabledExtensionNames = SDLExtensions.data();
 
+        VkDebugUtilsMessengerCreateInfoEXT debugCreateInfo{};
         if(m_EnableValidationLayers)
         {
             createInfo.enabledLayerCount = static_cast<uint32_t>(m_ValidationLayers.size());
             createInfo.ppEnabledLayerNames = m_ValidationLayers.data();
+
+            FillDebugMessengerCreateInfo(debugCreateInfo);
+            createInfo.pNext = (VkDebugUtilsMessengerCreateInfoEXT*)&debugCreateInfo;
         }
         else
         {
@@ -170,14 +186,25 @@ public:
 
         VkResult instanceResult = vkCreateInstance(&createInfo, nullptr, &m_Instance);
 
-        if(instanceResult == VK_SUCCESS)
+        if(instanceResult != VK_SUCCESS)
         {
-            Log.Info("Created Vulkan instance");
+            Log.Error("Failed to create Vulkan instance ", "VkResult: ", instanceResult);
+            return instanceResult;
+        }
+
+        Log.Info("Created Vulkan instance");
+
+        if(SetupDebugMessenger())
+        {
+            Log.Info("Created Vulkan debug messenger");
         }
         else
         {
-            Log.Error("Failed to create Vulkan instance ", "VkResult: ", instanceResult);
+            Log.Warn("Debugging not enabled");
         }
+
+        SelectPhysicalDevice();
+
         
         return instanceResult;
     }
@@ -259,16 +286,31 @@ private:
         return true;
     }
 
-    void SetupDebugMessenger()
+    void FillDebugMessengerCreateInfo(VkDebugUtilsMessengerCreateInfoEXT& info)
     {
-        if(!m_EnableValidationLayers) return;
+        info = {};
+        info.sType = VK_STRUCTURE_TYPE_DEBUG_UTILS_MESSENGER_CREATE_INFO_EXT;
+        info.messageSeverity = VK_DEBUG_UTILS_MESSAGE_SEVERITY_VERBOSE_BIT_EXT | VK_DEBUG_UTILS_MESSAGE_SEVERITY_WARNING_BIT_EXT | VK_DEBUG_UTILS_MESSAGE_SEVERITY_ERROR_BIT_EXT;
+        info.sType = VK_STRUCTURE_TYPE_DEBUG_UTILS_MESSENGER_CREATE_INFO_EXT;
+        info.messageSeverity = VK_DEBUG_UTILS_MESSAGE_SEVERITY_VERBOSE_BIT_EXT | VK_DEBUG_UTILS_MESSAGE_SEVERITY_WARNING_BIT_EXT | VK_DEBUG_UTILS_MESSAGE_SEVERITY_ERROR_BIT_EXT;
+        info.messageType = VK_DEBUG_UTILS_MESSAGE_TYPE_GENERAL_BIT_EXT | VK_DEBUG_UTILS_MESSAGE_TYPE_VALIDATION_BIT_EXT | VK_DEBUG_UTILS_MESSAGE_TYPE_PERFORMANCE_BIT_EXT;
+        info.pfnUserCallback = DebugCallback;
+        info.pUserData = nullptr;
+    }
+    
+    bool SetupDebugMessenger()
+    {
+        if(!m_EnableValidationLayers) return false;
 
-        VkDebugUtilsMessengerCreateInfoEXT createInfo{};
-        createInfo.sType = VK_STRUCTURE_TYPE_DEBUG_UTILS_MESSENGER_CREATE_INFO_EXT;
-        createInfo.messageSeverity = VK_DEBUG_UTILS_MESSAGE_SEVERITY_VERBOSE_BIT_EXT | VK_DEBUG_UTILS_MESSAGE_SEVERITY_WARNING_BIT_EXT | VK_DEBUG_UTILS_MESSAGE_SEVERITY_ERROR_BIT_EXT;
-        createInfo.messageType = VK_DEBUG_UTILS_MESSAGE_TYPE_GENERAL_BIT_EXT | VK_DEBUG_UTILS_MESSAGE_TYPE_VALIDATION_BIT_EXT | VK_DEBUG_UTILS_MESSAGE_TYPE_PERFORMANCE_BIT_EXT;
-        createInfo.pfnUserCallback = DebugCallback;
-        createInfo.pUserData = nullptr;
+        VkDebugUtilsMessengerCreateInfoEXT createInfo;
+        FillDebugMessengerCreateInfo(createInfo);
+
+        if(CreateDebugUtilsMessengerEXT(m_Instance, &createInfo, nullptr, &m_DebugMessenger) != VK_SUCCESS)
+        {
+            return false;
+        }
+
+        return true;
     }
 
     VkResult CreateDebugUtilsMessengerEXT(
@@ -297,13 +339,92 @@ private:
     {
         if(messageSeverity >= VK_DEBUG_UTILS_MESSAGE_SEVERITY_WARNING_BIT_EXT)
         {
-            Log.Error("Vulkan: ", pCallbackData->pMessage);
+            Log.Error("Vulkan validation layer: ", pCallbackData->pMessage);
         }
         return VK_FALSE;
     }
 
+    void DestroyDebugUtilsMessengerEXT(VkInstance instance, VkDebugUtilsMessengerEXT debugMessenger, const VkAllocationCallbacks* pAllocator)
+    {
+        auto func = (PFN_vkDestroyDebugUtilsMessengerEXT) vkGetInstanceProcAddr(m_Instance, "vkDestroyDebugUtilsMessengerEXT");
+
+        if(func != nullptr)
+        {
+            func(instance, debugMessenger, pAllocator);
+        }
+    }
+
+    uint32_t SelectPhysicalDevice()
+    {
+        m_PhysicalDevice = VK_NULL_HANDLE;
+
+        uint32_t deviceCount = 0;
+        vkEnumeratePhysicalDevices(m_Instance, &deviceCount, nullptr);
+
+        if(deviceCount == 0)
+        {
+            Log.Info("Failed to find GPUs with Vulkan support!");
+            return VK_ERROR_UNKNOWN;
+        }
+
+        std::vector<VkPhysicalDevice> devices(deviceCount);
+        vkEnumeratePhysicalDevices(m_Instance, &deviceCount, devices.data());
+
+        for(const auto& device : devices)
+        {
+            if(IsSuitableDevice(device))
+            {
+                m_PhysicalDevice = device;
+                break;
+            }
+        }
+
+        if(m_PhysicalDevice == VK_NULL_HANDLE)
+        {
+            Log.Error("Failed to find a suitable GPU!");
+            return VK_ERROR_UNKNOWN;
+        }
+    }
+
+    bool IsSuitableDevice(VkPhysicalDevice device)
+    {
+        VkPhysicalDeviceProperties deviceProperties;
+        VkPhysicalDeviceFeatures deviceFeatures;
+
+        vkGetPhysicalDeviceProperties(device, &deviceProperties);
+        vkGetPhysicalDeviceFeatures(device, &deviceFeatures);
+
+        return deviceProperties.deviceType == VK_PHYSICAL_DEVICE_TYPE_DISCRETE_GPU && deviceFeatures.geometryShader;
+    }
+
+    QueueFamilyIndices FindQueueFamilies(VkPhysicalDevice device)
+    {
+        QueueFamilyIndices indices;
+        
+        uint32_t queueFamilyCount = 0;
+        vkGetPhysicalDeviceQueueFamilyProperties(device, &queueFamilyCount, nullptr);
+
+        std::vector<VkQueueFamilyProperties> queueFamilies(queueFamilyCount);
+        vkGetPhysicalDeviceQueueFamilyProperties(device, &queueFamilyCount, queueFamilies.data());
+
+        int i = 0;
+        for(const auto& queueFamily : queueFamilies)
+        {
+            if(queueFamily.queueFlags & VK_QUEUE_GRAPHICS_BIT)
+            {
+                indices.GraphicsFamily = i;
+            }
+
+            ++i;
+        }
+
+        return indices;
+    }
+
 private:
     VkInstance m_Instance;
+    VkPhysicalDevice m_PhysicalDevice;
+
     bool m_EnableValidationLayers = false;
     VkDebugUtilsMessengerEXT m_DebugMessenger;
 
