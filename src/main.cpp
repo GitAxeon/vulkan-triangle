@@ -1,4 +1,4 @@
-#include "Log.hpp"
+// #include "Log.hpp"
 
 #include <SDL3/SDL.h>
 #include <SDL3/SDL_vulkan.h>
@@ -12,12 +12,19 @@
 #include <optional>
 #include <string>
 #include <vector>
+#include <exception>
 
-static LoggerBase<std::ostream> Log(std::cout);
+// static LoggerBase<std::ostream> Log(std::cout);
 
 struct QueueFamilyIndices
 {
     std::optional<uint32_t> GraphicsFamily;
+    std::optional<uint32_t> PresentFamily;
+
+    bool IsComplete()
+    {
+        return GraphicsFamily.has_value() && PresentFamily.has_value();
+    }
 };
 
 struct WindowInfo
@@ -33,100 +40,52 @@ struct WindowInfo
         : Title(title), Width(width), Height(height) {}
 };
 
-class SDLContextWrapper
-{
-public:
-    SDLContextWrapper() = default;
-    ~SDLContextWrapper()
-    {
-        SDL_Vulkan_UnloadLibrary();
-        SDL_Quit();
-    }
+// class SDLContextWrapper
+// {
+// public:
+//     SDLContextWrapper()
+//     {
+//         uint32_t sdlInitFlags = SDL_INIT_EVERYTHING;
 
-    bool Init(uint32_t sdlInitFlags = SDL_INIT_EVERYTHING) const
-    {
-        return SDL_Init(sdlInitFlags);
-    }
+//         int result = SDL_Init(sdlInitFlags);
 
-    const char* GetError() const
-    {
-        return SDL_GetError();
-    }
-};
+//         if(result != 0)
+//         {
+//             Log.Error("Failed to initialize SDL", GetError());
+//             throw std::runtime_error("Failed to initialize SDL");
+//         }
+//     }
 
-class SDLWindowWrapper
-{
-public:
-    SDLWindowWrapper(WindowInfo& info)
-    {
-        uint32_t flags = SDL_WINDOW_VULKAN;
-        m_SDLWindow = SDL_CreateWindow(info.Title.c_str(), info.Width, info.Height, flags);
+//     ~SDLContextWrapper()
+//     {
+//         SDL_Vulkan_UnloadLibrary();
+//         SDL_Quit();
+//     }
 
-        if(m_SDLWindow != nullptr)
-            Log.Info("Created SDLWindowWrapper successfully");
-        else
-            Log.Error("Created SDLWindowWrapper unsuccesfully");
-    }
-    
-    ~SDLWindowWrapper()
-    {
-        Log.Info("Destructed SDLWindowWrapper");
-        SDL_DestroyWindow(m_SDLWindow);
-    }
+//     const char* GetError() const
+//     {
+//         return SDL_GetError();
+//     }
+// };
 
-    SDL_Window* GetNativeWindow() const
-    {
-        return m_SDLWindow;
-    }
-
-private:
-    SDL_Window* m_SDLWindow;
-};
-
-class Window
-{
-public:
-    Window(WindowInfo& info)
-    {
-        m_WindowInfo = info;
-        m_Wrapper = std::make_unique<SDLWindowWrapper>(info);
-
-        Log.Info("Created Window");
-    }
-
-    ~Window()
-    {
-        Log.Info("Destructed window");
-    }
-
-    SDL_Window* GetNativeWindow() const
-    {
-        return m_Wrapper->GetNativeWindow();
-    }
-
-    bool IsOpen() const
-    {
-        return m_Open;
-    }
-
-    void Close()
-    {
-        m_Open = false;
-    }
-
-private:
-    std::unique_ptr<SDLWindowWrapper> m_Wrapper;
-    WindowInfo m_WindowInfo;
-
-    bool m_Open = true;
-};
 
 class VulkanContext
 {
 public:
     VulkanContext()
-        : m_Instance(nullptr) {}
-    
+        : m_Instance(nullptr), m_PhysicalDevice(nullptr), m_Device(nullptr), m_DebugMessenger(nullptr), m_EnableValidationLayers(true)
+    {
+        if(!Init("Default"))
+            throw std::runtime_error("Failed to initialize VulkanContext");
+    }
+
+    VulkanContext(const std::string& applicationName, bool enableValidationLayers)
+        : m_Instance(nullptr), m_PhysicalDevice(nullptr), m_Device(nullptr), m_DebugMessenger(nullptr), m_EnableValidationLayers(enableValidationLayers)
+    {
+        if(!Init(applicationName))
+            throw std::runtime_error("Failed to initialize VulkanContext");
+    }
+
     ~VulkanContext()
     {
         if(m_EnableValidationLayers)
@@ -135,16 +94,29 @@ public:
             DestroyDebugUtilsMessengerEXT(m_Instance, m_DebugMessenger, nullptr);
         }
 
+        vkDestroyDevice(m_Device, nullptr);
+
         Log.Info("Destructed VulkanContext");
         vkDestroyInstance(m_Instance, nullptr);
     }
 
-    uint32_t Init(const std::string& applicationName)
+    VkInstance GetInstance() const
     {
+        return m_Instance;
+    }
+private:
+    bool Init(const std::string& applicationName)
+    {
+        if(SDL_Vulkan_LoadLibrary(nullptr) != 0)
+        {
+            Log.Error("Failed to load Vulkan");
+            return false;
+        }
+
         if(m_EnableValidationLayers && !CheckValidationLayerSupport())
         {
             Log.Error("Validation layers requested but not available");
-            return VK_ERROR_LAYER_NOT_PRESENT; 
+            return false;
         }
 
         VkApplicationInfo appInfo{};
@@ -153,14 +125,14 @@ public:
         appInfo.applicationVersion = VK_MAKE_VERSION(1, 0, 0);
         appInfo.pEngineName = "No engine";
         appInfo.engineVersion = VK_MAKE_VERSION(1, 0, 0);
-        appInfo.apiVersion = VK_API_VERSION_1_0;
+        appInfo.apiVersion = VK_API_VERSION_1_1;
 
         std::vector<const char*> SDLExtensions;
         VkResult extensionResult = GetInstanceExtensions(SDLExtensions);
 
         if(extensionResult != VK_SUCCESS)
         {
-            return extensionResult;
+            return false;
         }
 
         VkInstanceCreateInfo createInfo {};
@@ -189,7 +161,7 @@ public:
         if(instanceResult != VK_SUCCESS)
         {
             Log.Error("Failed to create Vulkan instance ", "VkResult: ", instanceResult);
-            return instanceResult;
+            return false;
         }
 
         Log.Info("Created Vulkan instance");
@@ -205,16 +177,11 @@ public:
 
         SelectPhysicalDevice();
 
-        
-        return instanceResult;
-    }
+        CreateLogicalDevice();
 
-    void EnableValidationLayers()
-    {
-        m_EnableValidationLayers = true;
+        return true;
     }
-
-private:
+    
     VkResult GetInstanceExtensions(std::vector<const char*>& extensions)
     {
         uint32_t SDLExtensionCount = 0;
@@ -223,6 +190,7 @@ private:
         if(extensionResult == SDL_FALSE)
         {
             Log.Error("Failed to retrieve necessary Vulkan extensions");
+            Log.Error("SDL Error:" , SDL_GetError());
             return VK_ERROR_EXTENSION_NOT_PRESENT;
         }
         else
@@ -237,6 +205,7 @@ private:
         if(extensionResult == SDL_FALSE)
         {
             Log.Error("Failed to retrieve necessary Vulkan extensions");
+            Log.Error("SDL Error:" , SDL_GetError());
             return VK_ERROR_EXTENSION_NOT_PRESENT;
         }
 
@@ -354,7 +323,7 @@ private:
         }
     }
 
-    uint32_t SelectPhysicalDevice()
+    VkResult SelectPhysicalDevice()
     {
         m_PhysicalDevice = VK_NULL_HANDLE;
 
@@ -384,17 +353,15 @@ private:
             Log.Error("Failed to find a suitable GPU!");
             return VK_ERROR_UNKNOWN;
         }
+
+        return VK_SUCCESS;
     }
 
     bool IsSuitableDevice(VkPhysicalDevice device)
     {
-        VkPhysicalDeviceProperties deviceProperties;
-        VkPhysicalDeviceFeatures deviceFeatures;
+        QueueFamilyIndices indices = FindQueueFamilies(device);
 
-        vkGetPhysicalDeviceProperties(device, &deviceProperties);
-        vkGetPhysicalDeviceFeatures(device, &deviceFeatures);
-
-        return deviceProperties.deviceType == VK_PHYSICAL_DEVICE_TYPE_DISCRETE_GPU && deviceFeatures.geometryShader;
+        return indices.IsComplete();
     }
 
     QueueFamilyIndices FindQueueFamilies(VkPhysicalDevice device)
@@ -415,18 +382,69 @@ private:
                 indices.GraphicsFamily = i;
             }
 
+            // VkBool32 presentSupport = false;
+            // vkGetPhysicalDeviceSurfaceSupportKHR(device, i, )
+
+            if(indices.IsComplete())
+                break;
+
             ++i;
         }
 
         return indices;
     }
 
+    uint32_t CreateLogicalDevice()
+    {
+        QueueFamilyIndices indices = FindQueueFamilies(m_PhysicalDevice);
+
+        VkDeviceQueueCreateInfo queueCreateInfo{};
+        queueCreateInfo.sType = VK_STRUCTURE_TYPE_DEVICE_QUEUE_CREATE_INFO;
+        queueCreateInfo.queueFamilyIndex = indices.GraphicsFamily.value();
+        queueCreateInfo.queueCount = 1;
+
+        float queuePriority = 1.0f;
+        queueCreateInfo.pQueuePriorities = &queuePriority;
+
+        VkPhysicalDeviceFeatures deviceFeatures{};
+
+        VkDeviceCreateInfo createInfo{};
+        createInfo.sType = VK_STRUCTURE_TYPE_DEVICE_CREATE_INFO;
+        createInfo.pQueueCreateInfos = &queueCreateInfo;
+        createInfo.queueCreateInfoCount = 1;
+        createInfo.pEnabledFeatures = &deviceFeatures;
+
+        createInfo.enabledExtensionCount = 0;
+        if(m_EnableValidationLayers)
+        {
+            createInfo.enabledLayerCount = static_cast<uint32_t>(m_ValidationLayers.size());
+            createInfo.ppEnabledLayerNames = m_ValidationLayers.data();
+        }
+        else
+        {
+            createInfo.enabledLayerCount = 0;
+        }
+
+        VkResult result = vkCreateDevice(m_PhysicalDevice, &createInfo, nullptr, &m_Device);
+
+        if(result != VK_SUCCESS)
+        {
+            return VK_ERROR_INITIALIZATION_FAILED;
+        }
+
+        vkGetDeviceQueue(m_Device, indices.GraphicsFamily.value(), 0, &m_GraphicsQueue);
+
+        return VK_SUCCESS;
+    }
+
 private:
     VkInstance m_Instance;
     VkPhysicalDevice m_PhysicalDevice;
+    VkDevice m_Device;
+    VkQueue m_GraphicsQueue;
+    VkDebugUtilsMessengerEXT m_DebugMessenger;
 
     bool m_EnableValidationLayers = false;
-    VkDebugUtilsMessengerEXT m_DebugMessenger;
 
     std::array<const char*, 1> m_ValidationLayers = 
     {
@@ -434,56 +452,145 @@ private:
     };
 };
 
+
+class SDLWindowWrapper
+{
+public:
+    SDLWindowWrapper() { }
+    SDLWindowWrapper(const WindowInfo& info)
+    {
+        uint32_t flags = SDL_WINDOW_VULKAN;
+        m_SDLWindow = SDL_CreateWindow(info.Title.c_str(), info.Width, info.Height, flags);
+
+        if(m_SDLWindow == nullptr)
+        {
+            Log.Error("Created SDLWindowWrapper unsuccesfully");
+            throw std::runtime_error("Failed to create Window");
+        }
+
+        Log.Info("Created SDLWindowWrapper successfully");
+    }
+    
+    ~SDLWindowWrapper()
+    {
+        Log.Info("Destructed SDLWindowWrapper");
+        SDL_DestroyWindow(m_SDLWindow);
+    }
+
+    SDL_Window* GetNativeWindow() const
+    {
+        return m_SDLWindow;
+    }
+
+private:
+    SDL_Window* m_SDLWindow;
+};
+
+class RenderingContext;
+
+class Window
+{
+public:
+    Window() = delete;    
+    Window(const WindowInfo& info, const std::shared_ptr<VulkanContext>& vulkanContext)
+        : m_WindowInfo(info), m_Wrapper(std::make_unique<SDLWindowWrapper>(info)), m_RenderingContext(nullptr)
+    {
+        m_RenderingContext = std::make_unique<RenderingContext>(*this, vulkanContext);
+        Log.Info("Created Window with custom info");
+    }
+
+    ~Window()
+    {
+        Log.Info("Destructed window");
+    }
+
+    SDL_Window* GetNativeWindow() const
+    {
+        return m_Wrapper->GetNativeWindow();
+    }
+
+    bool IsOpen() const
+    {
+        return m_Open;
+    }
+
+    void Close()
+    {
+        m_Open = false;
+    }
+
+private:
+    WindowInfo m_WindowInfo;
+    std::unique_ptr<SDLWindowWrapper> m_Wrapper;
+    std::unique_ptr<RenderingContext> m_RenderingContext;
+
+    bool m_Open = true;
+};
+
+class RenderingContext
+{
+public:
+    RenderingContext(const Window& window, const std::shared_ptr<VulkanContext>& context)
+    {
+        SDL_bool result = SDL_Vulkan_CreateSurface(window.GetNativeWindow(), context->GetInstance(), &m_Surface);
+
+        if(result == SDL_FALSE)
+            throw std::runtime_error("Failed to create rendering context");
+
+        m_VulkanContext = context;
+    }
+
+    ~RenderingContext()
+    {
+        vkDestroySurfaceKHR(m_VulkanContext->GetInstance(), m_Surface, nullptr);
+    }
+
+public:
+    std::shared_ptr<VulkanContext> m_VulkanContext;
+    VkSurfaceKHR m_Surface;
+};
+
 int main(int argc, char* argv[])
 {
-    SDLContextWrapper SDLContext;
-
-    if(SDLContext.Init() == 0)
+    try
     {
+        WindowInfo info("Vulkan-triangle", 720, 300);
+
+        SDLContextWrapper SDLContext;
         Log.Info("SDLContext Initialized");
-    }
-    else
-    {
-        Log.Error(SDLContext.GetError());
-        return (EXIT_FAILURE);
-    }
-    
-    WindowInfo info("Vulkan-triangle", 720, 300);
-    Window window(info);
 
-    VulkanContext context;
-    context.EnableValidationLayers();
-    
-    if(context.Init(info.Title) == VK_SUCCESS)
-    {
-        Log.Info("Created VulkanContext succesfully");
-    }
-    else
-    {
-        Log.Error("Failed to create VulkanContext");
-        return (EXIT_FAILURE);
-    }
+        std::shared_ptr<VulkanContext> vulkanContext = std::make_shared<VulkanContext>(info.Title, true);
+        Log.Info("Created VulkanContext");
 
-    while(window.IsOpen())
-    {
-        SDL_Event e;
-        while(SDL_PollEvent(&e))
+        Window window(info, vulkanContext);
+
+        while(window.IsOpen())
         {
-            switch(e.type)
+            SDL_Event e;
+            while(SDL_PollEvent(&e))
             {
-                case SDL_EVENT_WINDOW_CLOSE_REQUESTED:
-                    window.Close();
-                break;
-                case SDL_EVENT_KEY_DOWN:
+                switch(e.type)
                 {
-                    if(e.key.keysym.sym == SDLK_ESCAPE)
+                    case SDL_EVENT_WINDOW_CLOSE_REQUESTED:
                         window.Close();
-                } break;
+                    break;
+                    case SDL_EVENT_KEY_DOWN:
+                    {
+                        if(e.key.keysym.sym == SDLK_ESCAPE)
+                            window.Close();
+                    } break;
+                }
+
+                // Rendering thingies?
             }
-
-            // Rendering thingies?
         }
-    }
 
-    return (EXIT_SUCCESS);
+        return (EXIT_SUCCESS);
+    }
+    catch(const std::exception& exception)
+    {
+        Log.Error(exception.what());
+        
+        return (EXIT_FAILURE);
+    }
 }

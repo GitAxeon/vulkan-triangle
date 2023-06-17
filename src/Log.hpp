@@ -41,3 +41,5 @@ private:
 private:
     OutputStreamT& m_OutputStream;
 };
+
+inline static LoggerBase<std::ostream> Log(std::cout);
