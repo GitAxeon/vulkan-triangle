@@ -1,9 +1,14 @@
 #include "SDLContextWrapper.hpp"
 
-SDLContextWrapper::SDLContextWrapper()
-{
-    uint32_t sdlInitFlags = SDL_INIT_EVERYTHING;
+#include "../Log.hpp"
 
+#include <SDL3/SDL.h>
+#include <SDL3/SDL_vulkan.h>
+
+#include <exception>
+
+SDLContextWrapper::SDLContextWrapper(uint32_t sdlInitFlags)
+{
     int result = SDL_Init(sdlInitFlags);
 
     if(result != 0)

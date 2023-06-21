@@ -8,7 +8,7 @@ set(CMAKE_ARCHIVE_OUTPUT_DIRECTORY ${CMAKE_SOURCE_DIR}/bin-int)
 set(CMAKE_LIBRARY_OUTPUT_DIRECTORY ${CMAKE_SOURCE_DIR}/bin-int)
 
 file(
-    GLOB source-files
+    GLOB_RECURSE source-files
     "src/*.cpp"
     "src/*.hpp"
 )
