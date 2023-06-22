@@ -36,14 +36,22 @@ int main(int argc, char* argv[])
 
         SDLContextWrapper SDLContext;
         Log.Info("SDLContext Initialized");
-
+        SDLContext.EnableVulkan();
+        
         VulkanInstanceCreateInfo createInfo;
         createInfo.ApplicationName = info.Title;
         createInfo.EnableValidationLayers = true;
 
+        createInfo.Extensions = SDLContext.GetVulkanInstanceExtensions();
+        createInfo.Extensions.push_back(VK_EXT_DEBUG_UTILS_EXTENSION_NAME);
+        // createInfo.Extensions.push_back("moi");
+
+        createInfo.ValidationLayers = { "VK_LAYER_KHRONOS_validation" };
+
+
         std::shared_ptr<VulkanInstance> vulkanInstance = std::make_shared<VulkanInstance>(createInfo);
         Log.Info("Created VulkanContext");
-
+        
         DebugUtilsMessenger debugMessenger(vulkanInstance, DebugCallback);
 
         Window window(info);

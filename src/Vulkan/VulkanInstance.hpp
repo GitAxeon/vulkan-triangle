@@ -5,6 +5,7 @@
 
 #include <set>
 #include <string>
+#include <vector>
 
 struct VulkanInstanceCreateInfo
 {
@@ -16,8 +17,7 @@ struct VulkanInstanceCreateInfo
 
     VulkanInstanceCreateInfo()
     :   ApplicationName("Default application name"),
-        EnableValidationLayers(true),
-        ValidationLayers({"VK_LAYER_KHRONOS_validation"})
+        EnableValidationLayers(true)
     {}
 };
 
@@ -30,12 +30,11 @@ public:
 
     VkInstance GetInstance() const;
 
+    static std::vector<VkExtensionProperties> EnumerateExtensions();
+    static std::vector<VkLayerProperties> EnumerateLayers();
 private:
-    void CreateInstance();
-    bool CheckValidationLayerSupport() const;
-    VkResult GetInstanceExtensions(std::vector<const char*>& extensions);
-    bool SetupDebugMessenger();
-    void FillDebugMessengerCreateInfo(VkDebugUtilsMessengerCreateInfoEXT& info);
+    bool CheckExtensionSupport();
+    bool CheckLayerSupport();
 
 private:
     VkInstance m_Instance;

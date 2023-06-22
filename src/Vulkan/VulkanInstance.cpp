@@ -1,61 +1,48 @@
 #include "VulkanInstance.hpp"
 #include "../Log.hpp"
 
-VulkanInstance::VulkanInstance(const VulkanInstanceCreateInfo& createInfo)
-    : m_Instance(nullptr), m_CreateInfo(createInfo)
+VulkanInstance::VulkanInstance(const VulkanInstanceCreateInfo& instanceCreateInfo)
+    : m_Instance(nullptr), m_CreateInfo(instanceCreateInfo)
 {        
-    if(!CheckValidationLayerSupport())
-        throw std::runtime_error("Validation layers not available");
-
-    CreateInstance();
-}
-
-VulkanInstance::~VulkanInstance()
-{
-    Log.Info("Destructed VulkanInstance");
-    vkDestroyInstance(m_Instance, nullptr);
-}
-
-VkInstance VulkanInstance::GetInstance() const
-{ 
-    return m_Instance;
-}
-
-void VulkanInstance::CreateInstance()
-{
-    if(SDL_Vulkan_LoadLibrary(nullptr) != 0)
-    {
-        Log.Error("Failed to load Vulkan");
-        throw std::runtime_error("Failed to load Vulkan");
-    }
-
     VkApplicationInfo appInfo{};
     appInfo.sType = VK_STRUCTURE_TYPE_APPLICATION_INFO;
-    appInfo.pApplicationName = m_CreateInfo.ApplicationName.c_str();
+    appInfo.pApplicationName = instanceCreateInfo.ApplicationName.c_str();
     appInfo.applicationVersion = VK_MAKE_VERSION(1, 0, 0);
     appInfo.pEngineName = "No engine";
     appInfo.engineVersion = VK_MAKE_VERSION(1, 0, 0);
     appInfo.apiVersion = VK_API_VERSION_1_1;
 
-    std::vector<const char*> SDLExtensions;
-    VkResult extensionResult = GetInstanceExtensions(SDLExtensions);
-
-    if(extensionResult != VK_SUCCESS)
+    Log.Info("Available Vulkan extensions: ");
+    size_t i = 0;
+    for(auto props : EnumerateExtensions())
     {
-        Log.Error("Failed to retrieve required Vulkan extensions");
-        throw std::runtime_error("Failed to retrieve required Vulkan extensions");
+        Extensions.insert(props.extensionName);
+        Log.Info("    ",++i, ": ", props.extensionName);
+    }
+
+    if(!CheckExtensionSupport())
+    {
+        Log.Error("One or more requested extensions unavailable");
+        throw std::runtime_error("Requested Vulkan extensions not available");
+    }
+
+    if(!CheckLayerSupport())
+    {
+        Log.Error("One or more requested layers unavailable");
+        throw std::runtime_error("Requested Vulkan validation layer not available");
     }
 
     VkInstanceCreateInfo createInfo {};
     createInfo.sType = VK_STRUCTURE_TYPE_INSTANCE_CREATE_INFO;
     createInfo.pApplicationInfo = &appInfo;
-    createInfo.enabledExtensionCount = SDLExtensions.size();
-    createInfo.ppEnabledExtensionNames = SDLExtensions.data();
 
-    if(m_CreateInfo.EnableValidationLayers)
+    createInfo.enabledExtensionCount = instanceCreateInfo.Extensions.size();
+    createInfo.ppEnabledExtensionNames = instanceCreateInfo.Extensions.data();
+
+    if(instanceCreateInfo.EnableValidationLayers)
     {
-        createInfo.enabledLayerCount = static_cast<uint32_t>(m_CreateInfo.ValidationLayers.size());
-        createInfo.ppEnabledLayerNames = m_CreateInfo.ValidationLayers.data();
+        createInfo.enabledLayerCount = static_cast<uint32_t>(instanceCreateInfo.ValidationLayers.size());
+        createInfo.ppEnabledLayerNames = instanceCreateInfo.ValidationLayers.data();
     }
     else
     {
@@ -71,78 +58,138 @@ void VulkanInstance::CreateInstance()
         throw std::runtime_error("Vulkan error");
     }
 
+    for(auto ext : instanceCreateInfo.Extensions)
+        EnabledExtensions.insert(ext);
+
+    for(auto ext : instanceCreateInfo.ValidationLayers)
+        EnabledLayers.insert(ext);
+
     Log.Info("Created Vulkan instance");
 }
 
-VkResult VulkanInstance::GetInstanceExtensions(std::vector<const char*>& extensions)
+VulkanInstance::~VulkanInstance()
 {
-    uint32_t SDLExtensionCount = 0;
-    SDL_bool extensionResult = SDL_Vulkan_GetInstanceExtensions(&SDLExtensionCount, nullptr);
-
-    if(extensionResult == SDL_FALSE)
-    {
-        Log.Error("Failed to retrieve necessary Vulkan extensions");
-        Log.Error("SDL Error:" , SDL_GetError());
-        return VK_ERROR_EXTENSION_NOT_PRESENT;
-    }
-    else
-    {
-        Log.Info("Retrieved ", SDLExtensionCount, " extensions");
-    }
-
-    extensions.resize(SDLExtensionCount);
-
-    extensionResult = SDL_Vulkan_GetInstanceExtensions(&SDLExtensionCount, extensions.data()); 
-    
-    if(extensionResult == SDL_FALSE)
-    {
-        Log.Error("Failed to retrieve necessary Vulkan extensions");
-        Log.Error("SDL Error:" , SDL_GetError());
-        return VK_ERROR_EXTENSION_NOT_PRESENT;
-    }
-
-    if(m_CreateInfo.EnableValidationLayers)
-    {
-        Log.Info("Included debug messenger extension");
-        extensions.push_back(VK_EXT_DEBUG_UTILS_EXTENSION_NAME);
-    }
-    
-    for(size_t i = 0; i < extensions.size(); i++)
-    {
-        Log.Info(i + 1, ": ", extensions[i]);
-    }
-
-    return VK_SUCCESS;
+    Log.Info("Destructed VulkanInstance");
+    vkDestroyInstance(m_Instance, nullptr);
 }
 
-bool VulkanInstance::CheckValidationLayerSupport() const
+VkInstance VulkanInstance::GetInstance() const
+{ 
+    return m_Instance;
+}
+
+std::vector<VkExtensionProperties> VulkanInstance::EnumerateExtensions()
 {
-    uint32_t layerCount = 0;
-    vkEnumerateInstanceLayerProperties(&layerCount, nullptr);
+    uint32_t count = 0;
+    VkResult enumerateResult = vkEnumerateInstanceExtensionProperties(nullptr, &count, nullptr);
 
-    std::vector<VkLayerProperties> availableLayers(layerCount);
-    vkEnumerateInstanceLayerProperties(&layerCount, availableLayers.data());
-
-    for(auto layerName : m_CreateInfo.ValidationLayers)
+    if(enumerateResult != VK_SUCCESS)
     {
-        bool layerFound = false;
-        
-        for(const auto& layerProperties : availableLayers)
+        Log.Error("Failed to enumerate Vulkan extensions");
+    }
+
+    if(count == 0)
+    {
+        Log.Error("No Vulkan extensions available VkResult", enumerateResult);
+    }
+
+    std::vector<VkExtensionProperties> properties;
+    properties.resize(count);
+
+    enumerateResult = vkEnumerateInstanceExtensionProperties(nullptr, &count, properties.data());
+
+    if(enumerateResult != VK_SUCCESS)
+    {
+        Log.Error("Failed to enumerate Vulkan extensions");
+    }
+
+    return properties;
+}
+
+std::vector<VkLayerProperties> VulkanInstance::EnumerateLayers()
+{
+    uint32_t count = 0;
+    VkResult enumerateResult = vkEnumerateInstanceLayerProperties(&count, nullptr);
+
+    if(enumerateResult != VK_SUCCESS)
+    {
+        Log.Error("Failed to enumerate Vulkan layers");
+    }
+
+    if(count == 0)
+    {
+        Log.Error("Vulkan validation layers not available VkResult", enumerateResult);
+    }
+
+    std::vector<VkLayerProperties> properties;
+    properties.resize(count);
+
+    enumerateResult = vkEnumerateInstanceLayerProperties(&count, properties.data());
+
+    if(enumerateResult != VK_SUCCESS)
+    {
+        Log.Error("Failed to enumerate Vulkan layers");
+    }
+
+    return properties;
+}
+
+bool VulkanInstance::CheckExtensionSupport()
+{
+    Log.Info("Checking extension support");
+
+    size_t count = 0;
+    for(auto ext : m_CreateInfo.Extensions)
+    {
+        bool found = false;
+
+        for(auto props : EnumerateExtensions())
         {
-            if(strcmp(layerName, layerProperties.layerName) == 0)
+            if(strcmp(ext, props.extensionName) == 0)
             {
-                Log.Info("Found validation layer \"", layerName, "\"");
-                layerFound = true;
-                break;
+                found = true;
+                Log.Info("    \"", ext, "\" - Found");
             }
         }
 
-        if(!layerFound)
+        if(!found)
         {
-            Log.Error("Couldn't find validation layer \"", layerName, "\"");
+            Log.Error("    \"", ext, "\" - Not found");
             return false;
         }
     }
+
+    Log.Info("- OK");
+
+    return true;
+}
+
+bool VulkanInstance::CheckLayerSupport()
+{
+    Log.Info("Checking validation layer support");
+
+    size_t count = 0;
+    for(auto ext : m_CreateInfo.ValidationLayers)
+    {
+        bool found = false;
+
+        for(auto props : EnumerateLayers())
+        {
+            if(strcmp(ext, props.layerName) == 0)
+            {
+                found = true;
+                Log.Info("    \"", ext, "\" - Found");
+            }
+        }
+
+        if(!found)
+        {
+            Log.Error("    \"", ext, "\" - Not found");
+            return false;
+        }
+    }
+
+    Log.Info("- OK");
 
     return true;
 }
