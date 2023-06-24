@@ -1,6 +1,6 @@
 #pragma once
 
-#include "../Log.hpp"
+#include "../debug/Log.hpp"
 #include "VulkanInstance.hpp"
 
 #include <vulkan/vulkan.hpp>
@@ -22,28 +22,11 @@ struct QueueFamilyIndices
 class VulkanPhysicalDevice
 {
 public:
-    VulkanPhysicalDevice(const std::shared_ptr<VulkanInstance>& vulkanInstance)
-    {
-        SelectPhysicalDevice(vulkanInstance->GetInstance());
-    }
-
-    VkResult SelectPhysicalDevice(VkInstance instance)
+    VulkanPhysicalDevice(std::shared_ptr<VulkanInstance> vulkanInstance)
     {
         m_PhysicalDevice = VK_NULL_HANDLE;
 
-        uint32_t deviceCount = 0;
-        vkEnumeratePhysicalDevices(instance, &deviceCount, nullptr);
-
-        if(deviceCount == 0)
-        {
-            Log.Info("Failed to find GPUs with Vulkan support!");
-            return VK_ERROR_UNKNOWN;
-        }
-
-        std::vector<VkPhysicalDevice> devices(deviceCount);
-        vkEnumeratePhysicalDevices(instance, &deviceCount, devices.data());
-
-        for(const auto& device : devices)
+        for(const auto& device : EnumeratePhysicalDevices(vulkanInstance))
         {
             if(IsSuitableDevice(device))
             {
@@ -55,10 +38,46 @@ public:
         if(m_PhysicalDevice == VK_NULL_HANDLE)
         {
             Log.Error("Failed to find a suitable GPU!");
-            return VK_ERROR_UNKNOWN;
+            throw std::runtime_error("No suitable GraphicsDevice found");
+        }
+    }
+
+    static std::vector<VkPhysicalDevice> EnumeratePhysicalDevices(std::shared_ptr<VulkanInstance> vulkanInstance)
+    {
+        uint32_t deviceCount = 0;
+        VkResult operationResult = vkEnumeratePhysicalDevices(vulkanInstance->GetInstance(), &deviceCount, nullptr);
+
+        if(operationResult != VK_SUCCESS)
+        {
+            Log.Error("vkEnumeratePhysicalDevices failed at getting deviceCount VkResult", operationResult);
         }
 
-        return VK_SUCCESS;
+        if(deviceCount == 0)
+        {
+            Log.Info("Failed to find GPUs with Vulkan support!");
+            throw std::runtime_error("No suitable GraphicsDevice found");
+        }
+
+        std::vector<VkPhysicalDevice> devices(deviceCount);
+        vkEnumeratePhysicalDevices(vulkanInstance->GetInstance(), &deviceCount, devices.data());
+
+        if(operationResult != VK_SUCCESS)
+        {
+            Log.Error("vkEnumeratePhysicalDevices failed listing devices VkResult", operationResult);
+        }
+
+        return devices;
+    }
+
+    std::vector<VkQueueFamilyProperties> EnumerateDeviceQueueFamilyProperties(VkPhysicalDevice device)
+    {
+        uint32_t queueFamilyCount = 0;
+        vkGetPhysicalDeviceQueueFamilyProperties(device, &queueFamilyCount, nullptr);
+
+        std::vector<VkQueueFamilyProperties> queueFamilies(queueFamilyCount);
+        vkGetPhysicalDeviceQueueFamilyProperties(device, &queueFamilyCount, queueFamilies.data());
+        
+        return queueFamilies;
     }
 
     bool IsSuitableDevice(VkPhysicalDevice device)
@@ -72,11 +91,7 @@ public:
     {
         QueueFamilyIndices indices;
         
-        uint32_t queueFamilyCount = 0;
-        vkGetPhysicalDeviceQueueFamilyProperties(device, &queueFamilyCount, nullptr);
-
-        std::vector<VkQueueFamilyProperties> queueFamilies(queueFamilyCount);
-        vkGetPhysicalDeviceQueueFamilyProperties(device, &queueFamilyCount, queueFamilies.data());
+        auto queueFamilies = EnumerateDeviceQueueFamilyProperties(device);
 
         int i = 0;
         for(const auto& queueFamily : queueFamilies)

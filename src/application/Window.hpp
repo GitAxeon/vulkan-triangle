@@ -3,8 +3,6 @@
 
 #include <memory>
 
-class RenderingContext;
-
 class Window
 {
 public:
@@ -15,6 +13,8 @@ public:
     SDL_Window* GetNativeWindow() const;
     bool IsOpen() const;
     void Close();
+
+    VkSurfaceKHR CreateSurface(std::shared_ptr<VulkanInstance> instance) const;
 
 private:
     WindowInfo m_WindowInfo;

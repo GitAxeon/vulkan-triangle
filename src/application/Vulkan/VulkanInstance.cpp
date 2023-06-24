@@ -1,5 +1,5 @@
 #include "VulkanInstance.hpp"
-#include "../Log.hpp"
+#include "../debug/Log.hpp"
 
 VulkanInstance::VulkanInstance(const VulkanInstanceCreateInfo& instanceCreateInfo)
     : m_Instance(nullptr), m_CreateInfo(instanceCreateInfo)
@@ -12,12 +12,13 @@ VulkanInstance::VulkanInstance(const VulkanInstanceCreateInfo& instanceCreateInf
     appInfo.engineVersion = VK_MAKE_VERSION(1, 0, 0);
     appInfo.apiVersion = VK_API_VERSION_1_1;
 
-    Log.Info("Available Vulkan extensions: ");
+    auto properties = EnumerateExtensions();
+    Log.Info("Available Vulkan extensions [", properties.size(), "]:");
     size_t i = 0;
-    for(auto props : EnumerateExtensions())
+    for(auto props : properties)
     {
         Extensions.insert(props.extensionName);
-        Log.Info("    ",++i, ": ", props.extensionName);
+        Log.Info("    ",i++, ": ", props.extensionName);
     }
 
     if(!CheckExtensionSupport())
@@ -136,9 +137,10 @@ std::vector<VkLayerProperties> VulkanInstance::EnumerateLayers()
 
 bool VulkanInstance::CheckExtensionSupport()
 {
-    Log.Info("Checking extension support");
+    size_t total = m_CreateInfo.Extensions.size();
+    Log.Info("Checking extension support [", total, "]");
 
-    size_t count = 0;
+    size_t foundExtensionsCount = 0;
     for(auto ext : m_CreateInfo.Extensions)
     {
         bool found = false;
@@ -148,27 +150,34 @@ bool VulkanInstance::CheckExtensionSupport()
             if(strcmp(ext, props.extensionName) == 0)
             {
                 found = true;
+                ++foundExtensionsCount;
                 Log.Info("    \"", ext, "\" - Found");
+                break;
             }
         }
 
         if(!found)
         {
             Log.Error("    \"", ext, "\" - Not found");
-            return false;
         }
     }
 
-    Log.Info("- OK");
+    Log.Info("- OK [", foundExtensionsCount, "]", " - FAILED [", total - foundExtensionsCount, "]");
+    
+    if(foundExtensionsCount != m_CreateInfo.Extensions.size())
+    {
+        return false;
+    }
 
     return true;
 }
 
 bool VulkanInstance::CheckLayerSupport()
 {
-    Log.Info("Checking validation layer support");
+    size_t total = m_CreateInfo.ValidationLayers.size();
+    Log.Info("Checking validation layer support [", total, "]");
 
-    size_t count = 0;
+    size_t foundLayerCount = 0;
     for(auto ext : m_CreateInfo.ValidationLayers)
     {
         bool found = false;
@@ -178,18 +187,24 @@ bool VulkanInstance::CheckLayerSupport()
             if(strcmp(ext, props.layerName) == 0)
             {
                 found = true;
+                ++foundLayerCount;
                 Log.Info("    \"", ext, "\" - Found");
+                break;
             }
         }
 
         if(!found)
         {
             Log.Error("    \"", ext, "\" - Not found");
-            return false;
         }
     }
 
-    Log.Info("- OK");
+    Log.Info("- OK [", foundLayerCount, "]", " - FAILED [", total - foundLayerCount, "]");
+
+    if(foundLayerCount != total)
+    {
+        return false;
+    }
 
     return true;
 }

@@ -1,6 +1,6 @@
 #pragma once
 
-#include "../Log.hpp"
+#include "../debug/Log.hpp"
 #include "VulkanInstance.hpp"
 
 #include <vulkan/vulkan.hpp>
@@ -9,6 +9,29 @@
 
 #define FETCH_VK_FUNCTION(instance, function) \
     reinterpret_cast<PFN_##function>(vkGetInstanceProcAddr(instance, #function))
+
+static VKAPI_ATTR VkBool32 VKAPI_CALL DefaultCallback(
+    VkDebugUtilsMessageSeverityFlagBitsEXT messageSeverity,
+    VkDebugUtilsMessageTypeFlagsEXT messageType, 
+    const VkDebugUtilsMessengerCallbackDataEXT* pCallbackData,
+    void* pUserData)
+{
+    const char* msg = "Vulkan validation layer: ";
+
+    switch(messageSeverity)
+    {
+        case VK_DEBUG_UTILS_MESSAGE_SEVERITY_ERROR_BIT_EXT:
+            Log.Error(msg, pCallbackData->pMessage);
+        break;
+        case VK_DEBUG_UTILS_MESSAGE_SEVERITY_WARNING_BIT_EXT:
+            Log.Warn(msg, pCallbackData->pMessage);
+        break;
+        default: // VERBOSE & INFO
+            Log.Info(msg, pCallbackData->pMessage);
+    }
+
+    return VK_FALSE;
+}
 
 class DebugUtilsMessenger
 {
@@ -21,6 +44,12 @@ public:
     )
         : m_Instance(instance), m_DebugMessenger {}
     {
+        if(fn == nullptr)
+        {
+            Log.Info("DebugUtils - ", "No callback function provided using default callback");
+            fn = DefaultCallback;
+        }
+
         VkDebugUtilsMessengerCreateInfoEXT createInfo {};
 
         createInfo.sType = VK_STRUCTURE_TYPE_DEBUG_UTILS_MESSENGER_CREATE_INFO_EXT;
@@ -33,8 +62,8 @@ public:
         
         if(CreateDebugUtilsMessengerEXT == nullptr)
         {
-            Log.Error("Failed to fetch vkCreateDebugUtilsMessengerEXT");
-            Log.Error("Failed to properly initialize DebugUtilsMessenger");
+            Log.Warn("Failed to fetch vkCreateDebugUtilsMessengerEXT");
+            Log.Warn("Failed to properly initialize DebugUtilsMessenger");
             // throw std::runtime_error("Failed to fetch vkCreateDebugUtilsMessengerEXT");
         }
         
@@ -42,8 +71,8 @@ public:
         
         if(result != VK_SUCCESS)
         {
-            Log.Error("Failed to create VulkanDebugMessenger. VkResult: ", result);
-            Log.Error("Failed to properly initialize DebugUtilsMessenger");
+            Log.Warn("Failed to create VulkanDebugMessenger. VkResult: ", result);
+            Log.Warn("Failed to properly initialize DebugUtilsMessenger");
             // throw std::runtime_error("Failed to create debug messenger");
         }
 

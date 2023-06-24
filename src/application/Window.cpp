@@ -1,5 +1,5 @@
 #include "Window.hpp"
-#include "Vulkan/VulkanRenderingContext.hpp"
+#include "RenderingContext.hpp"
 
 Window::Window(const WindowInfo& info)
     : m_WindowInfo(info), m_Wrapper(std::make_unique<SDLWindowWrapper>(info))
@@ -25,4 +25,9 @@ bool Window::IsOpen() const
 void Window::Close()
 {
     m_Open = false;
+}
+
+VkSurfaceKHR Window::CreateSurface(std::shared_ptr<VulkanInstance> instance) const
+{
+    return m_Wrapper->CreateVulkanSurface(instance->GetInstance());
 }

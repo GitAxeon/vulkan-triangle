@@ -1,6 +1,6 @@
 #include "SDLContextWrapper.hpp"
 
-#include "../Log.hpp"
+#include "../debug/Log.hpp"
 
 #include <SDL3/SDL.h>
 #include <SDL3/SDL_vulkan.h>
