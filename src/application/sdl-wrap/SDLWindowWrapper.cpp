@@ -13,7 +13,7 @@ SDLWindowWrapper::SDLWindowWrapper(const WindowInfo& info)
         throw std::runtime_error("Failed to create Window");
     }
 
-    Log.Info("Created SDLWindowWrapper successfully");
+    Log.Info("Created SDLWindowWrapper");
 }
 
 SDLWindowWrapper::~SDLWindowWrapper()

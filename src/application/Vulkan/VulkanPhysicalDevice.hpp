@@ -7,39 +7,53 @@
 #include <SDL3/SDL_vulkan.h>
 
 #include <optional>
+#include <map>
 
-struct QueueFamilyIndices
+struct VulkanQueueRequest
 {
-    std::optional<uint32_t> GraphicsFamily;
-    std::optional<uint32_t> PresentFamily;
+    VkQueueFlagBits Flags;
+    std::optional<VkSurfaceKHR> Surface;
+    float Priority;
+    uint32_t Count;
+};
 
-    bool IsComplete()
+struct DeviceQueueIndices
+{
+    std::map<VkQueueFlagBits, uint32_t> Indices;
+
+    bool Valid(std::vector<VulkanQueueRequest>& requests)
     {
-        return GraphicsFamily.has_value() && PresentFamily.has_value();
+        for(auto request : requests)
+        {
+            if(Indices.find(request.Flags) == Indices.end())
+                return false;
+        }
+
+        return true;
     }
 };
 
 class VulkanPhysicalDevice
 {
 public:
-    VulkanPhysicalDevice(std::shared_ptr<VulkanInstance> vulkanInstance)
+    VulkanPhysicalDevice(std::shared_ptr<VulkanInstance> vulkanInstance, VkPhysicalDevice device, DeviceQueueIndices indices)
+        : m_Instance(vulkanInstance),  m_PhysicalDevice(device), m_QueueFamilyIndices(indices)
     {
-        m_PhysicalDevice = VK_NULL_HANDLE;
+        Log.Info("Created VulkanPhysicalDevice");
+    }
+    ~VulkanPhysicalDevice()
+    {
+        Log.Info("Destructed VulkanPhysicalDevice");
+    }
 
-        for(const auto& device : EnumeratePhysicalDevices(vulkanInstance))
-        {
-            if(IsSuitableDevice(device))
-            {
-                m_PhysicalDevice = device;
-                break;
-            }
-        }
+    VkPhysicalDevice GetHandle() const 
+    {
+        return m_PhysicalDevice;
+    }
 
-        if(m_PhysicalDevice == VK_NULL_HANDLE)
-        {
-            Log.Error("Failed to find a suitable GPU!");
-            throw std::runtime_error("No suitable GraphicsDevice found");
-        }
+    DeviceQueueIndices GetQueueFamilyIndices() const
+    {
+        return m_QueueFamilyIndices;
     }
 
     static std::vector<VkPhysicalDevice> EnumeratePhysicalDevices(std::shared_ptr<VulkanInstance> vulkanInstance)
@@ -69,7 +83,46 @@ public:
         return devices;
     }
 
-    std::vector<VkQueueFamilyProperties> EnumerateDeviceQueueFamilyProperties(VkPhysicalDevice device)
+    VkPhysicalDeviceProperties GetDeviceProperties()
+    {
+        VkPhysicalDeviceProperties properties;
+        vkGetPhysicalDeviceProperties(m_PhysicalDevice, &properties);
+        return properties;
+    }
+
+    VkPhysicalDeviceFeatures GetDeviceFeatures() 
+    {
+        VkPhysicalDeviceFeatures features;
+        vkGetPhysicalDeviceFeatures(m_PhysicalDevice, &features);
+        return features;
+    }
+
+    std::vector<VkQueueFamilyProperties> EnumerateDeviceQueueFamilyProperties()
+    {
+        uint32_t queueFamilyCount = 0;
+        vkGetPhysicalDeviceQueueFamilyProperties(m_PhysicalDevice, &queueFamilyCount, nullptr);
+
+        std::vector<VkQueueFamilyProperties> queueFamilies(queueFamilyCount);
+        vkGetPhysicalDeviceQueueFamilyProperties(m_PhysicalDevice, &queueFamilyCount, queueFamilies.data());
+        
+        return queueFamilies;
+    }
+
+    static VkPhysicalDeviceProperties GetDeviceProperties(VkPhysicalDevice device)
+    {
+        VkPhysicalDeviceProperties properties;
+        vkGetPhysicalDeviceProperties(device, &properties);
+        return properties;
+    }
+
+    static VkPhysicalDeviceFeatures GetDeviceFeatures(VkPhysicalDevice device) 
+    {
+        VkPhysicalDeviceFeatures features;
+        vkGetPhysicalDeviceFeatures(device, &features);
+        return features;
+    }
+
+    static std::vector<VkQueueFamilyProperties> EnumerateDeviceQueueFamilyProperties(VkPhysicalDevice device)
     {
         uint32_t queueFamilyCount = 0;
         vkGetPhysicalDeviceQueueFamilyProperties(device, &queueFamilyCount, nullptr);
@@ -80,83 +133,66 @@ public:
         return queueFamilies;
     }
 
-    bool IsSuitableDevice(VkPhysicalDevice device)
-    {
-        QueueFamilyIndices indices = FindQueueFamilies(device);
 
-        return indices.IsComplete();
-    }
+// Idk the thing below this could be done by "device selector"?
+private:
+    // bool IsSuitableDevice(VkPhysicalDevice device, const VulkanDeviceRequirements& requirements)
+    // {
+    //     QueueFamilyIndices indices = FindQueueFamilies(device, requirements);
 
-    QueueFamilyIndices FindQueueFamilies(VkPhysicalDevice device)
-    {
-        QueueFamilyIndices indices;
+    //     if(indices.IsComplete())
+    //     {
+    //         m_QueueFamilyIndices = indices;
+    //     }
+
+    //     return indices.IsComplete();
+    // }
+    
+    // QueueFamilyIndices FindQueueFamilies(VkPhysicalDevice device, const VulkanDeviceRequirements& requirements)
+    // {
+    //     QueueFamilyIndices indices;
         
-        auto queueFamilies = EnumerateDeviceQueueFamilyProperties(device);
+    //     auto queueFamilies = EnumerateDeviceQueueFamilyProperties(device);
 
-        int i = 0;
-        for(const auto& queueFamily : queueFamilies)
-        {
-            if(queueFamily.queueFlags & VK_QUEUE_GRAPHICS_BIT)
-            {
-                indices.GraphicsFamily = i;
-            }
+    //     Log.Info("Listing queue families");
 
-            // VkBool32 presentSupport = false;
-            // vkGetPhysicalDeviceSurfaceSupportKHR(device, i, )
+    //     int i = 0;
+    //     for(const auto& queueFamily : queueFamilies)
+    //     {
+    //         // Log.Info("Queue family queue count: ", queueFamily.queueCount);
+    //         // Log.Info("{ ",
+    //         //     (queueFamily.queueFlags & VK_QUEUE_GRAPHICS_BIT) ? "Graphics " :"",
+    //         //     (queueFamily.queueFlags & VK_QUEUE_TRANSFER_BIT) ? "Transfer " : "",
+    //         //     (queueFamily.queueFlags & VK_QUEUE_COMPUTE_BIT) ? "Compute " : "",
+    //         //     (queueFamily.queueFlags & VK_QUEUE_SPARSE_BINDING_BIT) ? "Sparse " : "",
+    //         // " }");
+            
+    //         if((queueFamily.queueFlags & requirements.QueueFlags) == requirements.QueueFlags)
+    //         {
+    //             // Log.Info("Flag bits matching");
+    //             indices.GraphicsFamily = i;
+    //         }
 
-            if(indices.IsComplete())
-                break;
+    //         if(requirements.Surface.has_value())
+    //         {
+    //             VkBool32 presentSupport = false;
+    //             vkGetPhysicalDeviceSurfaceSupportKHR(device, i, requirements.Surface.value(), &presentSupport);
 
-            ++i;
-        }
+    //             if(presentSupport)
+    //                 indices.PresentFamily = i;
+    //         }
 
-        return indices;
-    }
+    //         if(indices.IsComplete())
+    //             break;
+
+    //         ++i;
+    //     }
+
+    //     return indices;
+    // }
 
 private:
     VkPhysicalDevice m_PhysicalDevice = VK_NULL_HANDLE;
+    std::shared_ptr<VulkanInstance> m_Instance;
+    DeviceQueueIndices m_QueueFamilyIndices;
 };
-
-// uint32_t CreateLogicalDevice()
-// {
-//     QueueFamilyIndices indices = FindQueueFamilies(m_PhysicalDevice);
-
-//     VkDeviceQueueCreateInfo queueCreateInfo{};
-//     queueCreateInfo.sType = VK_STRUCTURE_TYPE_DEVICE_QUEUE_CREATE_INFO;
-//     queueCreateInfo.queueFamilyIndex = indices.GraphicsFamily.value();
-//     queueCreateInfo.queueCount = 1;
-
-//     float queuePriority = 1.0f;
-//     queueCreateInfo.pQueuePriorities = &queuePriority;
-
-//     VkPhysicalDeviceFeatures deviceFeatures{};
-
-//     VkDeviceCreateInfo createInfo{};
-//     createInfo.sType = VK_STRUCTURE_TYPE_DEVICE_CREATE_INFO;
-//     createInfo.pQueueCreateInfos = &queueCreateInfo;
-//     createInfo.queueCreateInfoCount = 1;
-//     createInfo.pEnabledFeatures = &deviceFeatures;
-
-//     createInfo.enabledExtensionCount = 0;
-    
-//     if(m_EnableValidationLayers)
-//     {
-//         createInfo.enabledLayerCount = static_cast<uint32_t>(m_ValidationLayers.size());
-//         createInfo.ppEnabledLayerNames = m_ValidationLayers.data();
-//     }
-//     else
-//     {
-//         createInfo.enabledLayerCount = 0;
-//     }
-
-//     VkResult result = vkCreateDevice(m_PhysicalDevice, &createInfo, nullptr, &m_Device);
-
-//     if(result != VK_SUCCESS)
-//     {
-//         return VK_ERROR_INITIALIZATION_FAILED;
-//     }
-
-//     vkGetDeviceQueue(m_Device, indices.GraphicsFamily.value(), 0, &m_GraphicsQueue);
-
-//     return VK_SUCCESS;
-// }

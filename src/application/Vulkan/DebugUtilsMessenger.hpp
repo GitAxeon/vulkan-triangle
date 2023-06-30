@@ -76,7 +76,7 @@ public:
             // throw std::runtime_error("Failed to create debug messenger");
         }
 
-        Log.Info("Created VulkanDebugMessenger successfully");
+        Log.Info("Created VulkanDebugMessenger");
     }
 
     ~DebugUtilsMessenger()

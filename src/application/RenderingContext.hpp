@@ -1,6 +1,7 @@
 #pragma once
 
 #include "Window.hpp"
+#include "Vulkan/VulkanSurface.hpp"
 
 class RenderingContext
 {
@@ -16,6 +17,11 @@ public:
     ~RenderingContext()
     {
         vkDestroySurfaceKHR(m_VulkanInstance->GetInstance(), m_Surface, nullptr);
+    }
+
+    VkSurfaceKHR GetSurface() const
+    {
+        return m_Surface;
     }
 
 public:
