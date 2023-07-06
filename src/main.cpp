@@ -52,7 +52,7 @@ static VKAPI_ATTR VkBool32 VKAPI_CALL DebugCallback(
         case VK_DEBUG_UTILS_MESSAGE_SEVERITY_WARNING_BIT_EXT:
             Log.Warn(msg, pCallbackData->pMessage);
         break;
-        case VK_DEBUG_UTILS_MESSAGE_SEVERITY_INFO_BIT_EXT:
+        default: //VK_DEBUG_UTILS_MESSAGE_SEVERITY_INFO_BIT_EXT:
             Log.Info(msg, pCallbackData->pMessage);
         break;
     }
@@ -94,14 +94,14 @@ void RunApplication()
     queueRequests.emplace_back(req1);
 
     // VulkanQueueRequest req2;
-    // req2.Flags = VK_QUEUE_GRAPHICS_BIT;
+    // req2.Flags = VK_QUEUE_TRANSFER_BIT;
     // req2.Surface = renderingContext.GetSurface();
     // req2.Count = 3;
     // req2.Priorities.push_back(1.0f);
     // queueRequests.emplace_back(req2);
 
     // VulkanQueueRequest req3;
-    // req3.Flags = VK_QUEUE_TRANSFER_BIT | VK_QUEUE_SPARSE_BINDING_BIT;
+    // req3.Flags = VK_QUEUE_GRAPHICS_BIT | VK_QUEUE_SPARSE_BINDING_BIT | VK_QUEUE_PROTECTED_BIT;
     // req3.Surface = renderingContext.GetSurface();
     // req3.Count = 5;
     // req3.Priorities.push_back(1.0f);

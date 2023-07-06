@@ -25,6 +25,7 @@ struct VulkanDeviceInfo
     std::vector<VulkanQueueFamilyInfo> QueueFamilies;
 };
 
+// For now ignore non-standard queue flags
 class VulkanDeviceSelector
 {
 public:
@@ -174,6 +175,7 @@ private:
         if (flags & VK_QUEUE_COMPUTE_BIT) count++;
         if (flags & VK_QUEUE_TRANSFER_BIT) count++;
         if (flags & VK_QUEUE_SPARSE_BINDING_BIT) count++;
+        if (flags & VK_QUEUE_PROTECTED_BIT) count++;
 
         return count;   
     }
@@ -203,15 +205,15 @@ private:
         return cleaned;
     }
 
+    struct FamilyData
+    {
+        VkQueueFlags Flags;
+        uint32_t Count;
+        std::vector<std::vector<VulkanQueueFamilyInfo>::iterator> Iterators;
+    };
+
     void Thinking()
     {
-        struct FamilyData
-        {
-            VkQueueFlags Flags;
-            uint32_t Count;
-            std::vector<std::vector<VulkanQueueFamilyInfo>::iterator> Iterators;
-        };
-
         std::vector<std::vector<FamilyData>> perDeviceQueueData;
         
         size_t deviceIndex = 0;
@@ -226,7 +228,7 @@ private:
 
                 auto result = std::find_if(deviceQueueData.begin(), deviceQueueData.end(), [&](const FamilyData& val)
                 {
-                    return val.Flags == family.Properties.queueFlags;
+                    return SanitizeQueueFlags(val.Flags) == SanitizeQueueFlags(family.Properties.queueFlags);
                 });
                 
                 if(result == deviceQueueData.end())
@@ -234,14 +236,12 @@ private:
                     FamilyData familyData;
                     familyData.Flags = family.Properties.queueFlags;
                     familyData.Count = family.Properties.queueCount;
-                    Log.Info(" - ", FlagsToString(familyData.Flags), " : ", familyData.Count);
                     familyData.Iterators.push_back(familyIterator);
 
                     deviceQueueData.emplace_back(familyData);
                 }
                 else
                 {
-                    Log.Info("  AAAAAAAAAAAAAAAAAAAAAAA Combining");
                     result->Count += family.Properties.queueCount;
                     result->Iterators.push_back(familyIterator);
                 }
@@ -256,7 +256,7 @@ private:
         {
             for(auto& queue : family)
             {
-                Log.Info(FlagsToString(queue.Flags), ": ", queue.Count,  " | ", static_cast<uint32_t>(queue.Flags));
+                Log.Info(FlagsToString(queue.Flags), ": ", queue.Count);
             }
         }
 
@@ -267,7 +267,83 @@ private:
         {
             Log.Info(FlagsToString(req.Flags), " : ", req.Count);
         }
+
+        for(auto& family : perDeviceQueueData)
+        {
+            bool isDeviceSuitable = false;
+
+            for(auto& req : cleanRequests)
+            {
+
+                auto suitableFamilies = FindSuitableFamilies(family, req);
+
+                Log.Info(suitableFamilies.size(), " Suitable families for ", FlagsToString(req.Flags));
+                for(auto fam : suitableFamilies)
+                {
+                    Log.Info("  ", FlagsToString(fam->Flags));
+                }
+
+                // for(auto& queue : family)
+                // {
+                //     VkQueueFlags sanitizedRequestFlags = SanitizeQueueFlags(req.Flags);
+                //     VkQueueFlags sanitizedQueueFlags = SanitizeQueueFlags(queue.Flags);
+                    
+                //     uint32_t requestFlagCount = CountQueueFamilyTypes(req.Flags);
+                //     uint32_t queueFlagCount = CountQueueFamilyTypes(queue.Flags);
+
+                //     if(queueFlagCount < requestFlagCount)
+                //         continue;
+                    
+                //     if((sanitizedQueueFlags & sanitizedRequestFlags) != sanitizedRequestFlags)
+                //         continue;
+
+                //     if((sanitizedQueueFlags | sanitizedRequestFlags) == sanitizedRequestFlags) // Perfect match
+                //     {
+                //         if(req.Count > queue.Count)
+                //             continue;
+
+                //     }
+                //     else // Extra flags are present
+                //     {
+                //         if(req.Count > queue.Count)
+                //             continue;
+                //     }
+
+                // }
+            }
+        }
     }
+
+    std::vector<std::vector<FamilyData>::iterator> FindSuitableFamilies(std::vector<FamilyData>& family, const VulkanQueueRequest& request)
+    {
+        std::vector<std::vector<FamilyData>::iterator> result;
+
+        auto queueIterator = family.begin();
+        for(; queueIterator != family.end(); ++queueIterator)
+        {
+            VkQueueFlags requestFlags = SanitizeQueueFlags(request.Flags);
+            VkQueueFlags queueFlags = SanitizeQueueFlags(queueIterator->Flags);
+
+            if(FlagsArePresent(requestFlags, queueFlags))
+            {
+                // Log.Info(FlagsToString(requestFlags), " - ", FlagsToString(queueFlags), " = ", FlagsArePresent(requestFlags, queueFlags));
+                result.emplace_back(queueIterator);
+            }
+        }
+
+        std::sort(result.begin(), result.end(), [](const std::vector<FamilyData>::iterator& it1, const std::vector<FamilyData>::iterator& it2)
+        {
+            return it1->Count < it2->Count;
+        });
+
+        return result;
+    }
+
+    // return true if flags1 are present in flags2
+    bool FlagsArePresent(VkQueueFlags flags1, VkQueueFlags flags2)
+    {
+        return ((flags2 & flags1) == flags1);
+    }   
 
 // Unused
     bool DoesDeviceSupportRequests(const VulkanDeviceInfo& deviceInfo) const
@@ -316,12 +392,8 @@ private:
 
     std::string FlagsToString(VkQueueFlags flags)
     {
-        std::bitset<32> bits(flags);
-
-        Log.Info("flag bits: ", bits.to_string());
-
         std::string str;
-        str.append("Mask: " + std::to_string(flags) + " { ");
+        str.append("{ ");
         
         if(flags & VK_QUEUE_GRAPHICS_BIT)
             str.append("Graphics ");
@@ -337,10 +409,21 @@ private:
 
         if(flags & VK_QUEUE_PROTECTED_BIT)
             str.append("Protected ");
-            
+
         str.append("}");
 
         return str;
+    }
+
+    VkQueueFlags SanitizeQueueFlags(VkQueueFlags flags)
+    {
+        const VkQueueFlags validFlagMask = VK_QUEUE_GRAPHICS_BIT |
+            VK_QUEUE_COMPUTE_BIT | 
+            VK_QUEUE_TRANSFER_BIT | 
+            VK_QUEUE_SPARSE_BINDING_BIT |
+            VK_QUEUE_PROTECTED_BIT;
+
+        return (flags & validFlagMask);
     }
 
 // Unused
