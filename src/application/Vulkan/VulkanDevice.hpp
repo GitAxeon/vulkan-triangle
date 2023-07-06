@@ -50,20 +50,30 @@ public:
         Log.Info("Destructed VulkanDevice");
     }
 
+    VkQueue GetQueue()
+    {
+        VkQueue queue;
+        vkGetDeviceQueue(m_Device, 0, 0, &queue);
+
+        return queue;
+    } 
+
 private:
     std::vector<VkDeviceQueueCreateInfo> GenerateCreateInfos(const std::vector<VulkanQueueRequest>& requests)
     {
         std::vector<VkDeviceQueueCreateInfo> result;
 
         DeviceQueueIndices indices = m_PhysicalDevice->GetQueueFamilyIndices();
-        for(auto request : requests)
+        for(size_t i = 0; i < requests.size(); i++)
         {
+            const VulkanQueueRequest& request = requests[i];
+
             VkDeviceQueueCreateInfo queueCreateInfo{};
             queueCreateInfo.sType = VK_STRUCTURE_TYPE_DEVICE_QUEUE_CREATE_INFO;
             queueCreateInfo.queueFamilyIndex = indices.Indices.find(request.Flags)->second;
             queueCreateInfo.queueCount = request.Count;
 
-            queueCreateInfo.pQueuePriorities = &request.Priority;
+            queueCreateInfo.pQueuePriorities = request.Priorities.data();
             
             result.emplace_back(queueCreateInfo);
         }

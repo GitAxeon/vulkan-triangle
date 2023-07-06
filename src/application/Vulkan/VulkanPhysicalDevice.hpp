@@ -9,17 +9,18 @@
 #include <optional>
 #include <map>
 
+// I have misunderstood the Vulkan queue creation so it needs to be fixed later
 struct VulkanQueueRequest
 {
-    VkQueueFlagBits Flags;
+    VkQueueFlags Flags;
     std::optional<VkSurfaceKHR> Surface;
-    float Priority;
     uint32_t Count;
+    std::vector<float> Priorities;
 };
 
 struct DeviceQueueIndices
 {
-    std::map<VkQueueFlagBits, uint32_t> Indices;
+    std::map<VkQueueFlags, uint32_t> Indices;
 
     bool Valid(std::vector<VulkanQueueRequest>& requests)
     {
@@ -132,64 +133,6 @@ public:
         
         return queueFamilies;
     }
-
-
-// Idk the thing below this could be done by "device selector"?
-private:
-    // bool IsSuitableDevice(VkPhysicalDevice device, const VulkanDeviceRequirements& requirements)
-    // {
-    //     QueueFamilyIndices indices = FindQueueFamilies(device, requirements);
-
-    //     if(indices.IsComplete())
-    //     {
-    //         m_QueueFamilyIndices = indices;
-    //     }
-
-    //     return indices.IsComplete();
-    // }
-    
-    // QueueFamilyIndices FindQueueFamilies(VkPhysicalDevice device, const VulkanDeviceRequirements& requirements)
-    // {
-    //     QueueFamilyIndices indices;
-        
-    //     auto queueFamilies = EnumerateDeviceQueueFamilyProperties(device);
-
-    //     Log.Info("Listing queue families");
-
-    //     int i = 0;
-    //     for(const auto& queueFamily : queueFamilies)
-    //     {
-    //         // Log.Info("Queue family queue count: ", queueFamily.queueCount);
-    //         // Log.Info("{ ",
-    //         //     (queueFamily.queueFlags & VK_QUEUE_GRAPHICS_BIT) ? "Graphics " :"",
-    //         //     (queueFamily.queueFlags & VK_QUEUE_TRANSFER_BIT) ? "Transfer " : "",
-    //         //     (queueFamily.queueFlags & VK_QUEUE_COMPUTE_BIT) ? "Compute " : "",
-    //         //     (queueFamily.queueFlags & VK_QUEUE_SPARSE_BINDING_BIT) ? "Sparse " : "",
-    //         // " }");
-            
-    //         if((queueFamily.queueFlags & requirements.QueueFlags) == requirements.QueueFlags)
-    //         {
-    //             // Log.Info("Flag bits matching");
-    //             indices.GraphicsFamily = i;
-    //         }
-
-    //         if(requirements.Surface.has_value())
-    //         {
-    //             VkBool32 presentSupport = false;
-    //             vkGetPhysicalDeviceSurfaceSupportKHR(device, i, requirements.Surface.value(), &presentSupport);
-
-    //             if(presentSupport)
-    //                 indices.PresentFamily = i;
-    //         }
-
-    //         if(indices.IsComplete())
-    //             break;
-
-    //         ++i;
-    //     }
-
-    //     return indices;
-    // }
 
 private:
     VkPhysicalDevice m_PhysicalDevice = VK_NULL_HANDLE;

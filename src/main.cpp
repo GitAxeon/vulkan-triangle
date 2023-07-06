@@ -89,21 +89,45 @@ void RunApplication()
     VulkanQueueRequest req1;
     req1.Flags = VK_QUEUE_GRAPHICS_BIT;
     req1.Surface = renderingContext.GetSurface();
-    req1.Priority = 1.0f;
     req1.Count = 1;
+    req1.Priorities.push_back(1.0f);
     queueRequests.emplace_back(req1);
 
     // VulkanQueueRequest req2;
     // req2.Flags = VK_QUEUE_GRAPHICS_BIT;
-    // req2.Priority = 1.0f;
-    // req2.Count = 1;
+    // req2.Surface = renderingContext.GetSurface();
+    // req2.Count = 3;
+    // req2.Priorities.push_back(1.0f);
     // queueRequests.emplace_back(req2);
+
+    // VulkanQueueRequest req3;
+    // req3.Flags = VK_QUEUE_TRANSFER_BIT | VK_QUEUE_SPARSE_BINDING_BIT;
+    // req3.Surface = renderingContext.GetSurface();
+    // req3.Count = 5;
+    // req3.Priorities.push_back(1.0f);
+    // queueRequests.emplace_back(req3);
+
+    // VulkanQueueRequest req4;
+    // req4.Flags = VK_QUEUE_COMPUTE_BIT;
+    // req4.Surface = renderingContext.GetSurface();
+    // req4.Count = 1;
+    // req4.Priorities.push_back(1.0f);
+    // queueRequests.emplace_back(req4);
+
+    // VulkanQueueRequest req5;
+    // req5.Flags = VK_QUEUE_COMPUTE_BIT;
+    // req5.Surface = renderingContext.GetSurface();
+    // req5.Count = 9;
+    // req5.Priorities.push_back(1.0f);
+    // queueRequests.emplace_back(req5);
 
     VulkanDeviceSelector selector(vulkanInstance, queueRequests);
 
     std::shared_ptr<VulkanPhysicalDevice> physicalDevice = selector.SelectDevice();
 
     std::shared_ptr<VulkanDevice> device = std::make_shared<VulkanDevice>(vulkanInstance, physicalDevice, queueRequests);
+
+    VkQueue graphicsQueue = device->GetQueue();
 
     Log.Info("Entering EventLoop");
     while(window.IsOpen())
@@ -126,5 +150,6 @@ void RunApplication()
         // Rendering thingies?
     
     }
+
     Log.Info("Exiting EventLoop");
 }
