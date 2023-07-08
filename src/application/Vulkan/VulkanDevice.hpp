@@ -53,10 +53,13 @@ public:
         Log.Info("Destructed VulkanDevice");
     }
 
-    VkQueue GetQueue()
+    VkQueue GetQueue(const VulkanQueueRequest& request, int index)
     {
         VkQueue queue;
-        vkGetDeviceQueue(m_Device, 0, 0, &queue);
+
+        if(request.Indices[0].Count > index)
+            vkGetDeviceQueue(m_Device, request.Indices[0].Index, index, &queue);
+
 
         return queue;
     } 

@@ -95,12 +95,14 @@ void RunApplication()
 
     Log.Info("Creating device selector");
     std::shared_ptr<VulkanDeviceSelector> selector = std::make_shared<VulkanDeviceSelector>(vulkanInstance, queueRequests);
+
     Log.Info("Creating logical device");
     std::shared_ptr<VulkanDevice> device = std::make_shared<VulkanDevice>(selector);
+    
+    queueRequests = selector->GetRequests();
 
-    // std::shared_ptr<VulkanPhysicalDevice> physicalDevice = selector->SelectDevice();
-
-    //VkQueue graphicsQueue = device->GetQueue();
+    // Nah man this is scuffed xdd will fix it later tho
+    VkQueue graphicsQueue = device->GetQueue(queueRequests[0], 0);
 
     Log.Info("Entering EventLoop");
     while(window.IsOpen())
