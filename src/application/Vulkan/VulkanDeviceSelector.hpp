@@ -8,6 +8,23 @@
 #include <map>
 #include <bitset>
 
+struct QueueFamilyIndices
+{
+    uint32_t Count;
+    uint32_t Index;
+};
+    
+struct VulkanQueueRequest
+{
+    VkQueueFlags Flags;
+    std::optional<VkSurfaceKHR> Surface;
+    uint32_t Count;
+    std::vector<float> Priorities;
+
+    // This vector gets filled with device family indices during the checkup phase
+    std::vector<QueueFamilyIndices> Indices;
+};
+
 struct VulkanQueueFamilyInfo
 {
     VkQueueFamilyProperties Properties;
@@ -25,14 +42,23 @@ struct VulkanDeviceInfo
     std::vector<VulkanQueueFamilyInfo> QueueFamilies;
 };
 
-// For now ignore non-standard queue flags
+/*
+    I still haven't quite understood how the queue creation is supposed to work
+    so the indices in the VulkanQueueRequest struct are non standard ie. not working properly
+    but I might just move on so I get things done. I'll come back here soon enough to fix things
+*/
+
 class VulkanDeviceSelector
 {
 public:
     VulkanDeviceSelector(std::shared_ptr<VulkanInstance> instance, std::vector<VulkanQueueRequest>& queueRequests)
         : m_Instance(instance), m_Requests(queueRequests)
     {
-        m_DeviceInfos = CollectDeviceInformation(instance, queueRequests);
+        m_DeviceInfos = CollectDeviceInformation(instance, m_Requests);
+
+        for(auto& request : m_Requests)
+            while(request.Priorities.size() <= request.Count)
+                request.Priorities.push_back(1.0f);
     }
 
     std::shared_ptr<VulkanPhysicalDevice> SelectDevice()
@@ -46,32 +72,46 @@ public:
             
             for(auto family : deviceInfo.QueueFamilies)
             {
-                Log.Info("  { ",
-                    (family.Properties.queueFlags & VK_QUEUE_GRAPHICS_BIT) ? "Graphics " :"",
-                    (family.Properties.queueFlags & VK_QUEUE_TRANSFER_BIT) ? "Transfer " : "",
-                    (family.Properties.queueFlags & VK_QUEUE_COMPUTE_BIT) ? "Compute " : "",
-                    (family.Properties.queueFlags & VK_QUEUE_SPARSE_BINDING_BIT) ? "Sparse " : "",
-                    (family.Properties.queueFlags & VK_QUEUE_PROTECTED_BIT) ? "Protected " : "",
-                " }  Max Queues: ", family.Properties.queueCount);
+                Log.Info( StandardFlagsToString(family.Properties.queueFlags), " Max Queues: ", family.Properties.queueCount);
             }
         }
         Log.Info("-------------");
 
-        Thinking();
-
-        for(auto device : VulkanPhysicalDevice::EnumeratePhysicalDevices(m_Instance))
+        struct DeviceScore
         {
-            DeviceQueueIndices indices = FindIndices(device);
+            uint32_t DeviceIndex;
+            int Value;
+        };
+        
+        std::vector<DeviceScore> scores;
 
-            if(indices.Valid(m_Requests))
-            {
-                Log.Info("Suitable device found");
-                return std::make_shared<VulkanPhysicalDevice>(m_Instance, device, indices);
-            }
+        size_t deviceIndex = 0;
+        for(auto& info : m_DeviceInfos)
+        {
+            DeviceScore score;
+            score.DeviceIndex = deviceIndex;
+            score.Value = ScoreDevice(info); 
+            
+            scores.push_back(score);
+
+            deviceIndex++;
         }
 
-        Log.Error("Queue requests couldn't be fulfilled");
-        throw std::runtime_error("Failed to find suitable physical device");
+        // Sort device scores in descending order
+        std::sort(scores.begin(), scores.end(), [](const DeviceScore& lhs, const DeviceScore& rhs)
+        {
+            return lhs.Value < rhs.Value;
+        });
+
+        DeviceScore bestDevice = scores[0];
+
+        if(bestDevice.Value < 0)
+        {
+            Log.Error("Queue requests couldn't be fulfilled");
+            throw std::runtime_error("Failed to find suitable physical device");
+        }
+
+        return std::make_shared<VulkanPhysicalDevice>(m_Instance, VulkanPhysicalDevice::GetDevice(m_Instance, bestDevice.DeviceIndex));
     }
 
     static std::vector<VulkanDeviceInfo> CollectDeviceInformation(
@@ -120,37 +160,22 @@ public:
         return m_DeviceInfos;
     }
 
-private:
-
-    DeviceQueueIndices FindIndices(VkPhysicalDevice device)
+    std::shared_ptr<VulkanInstance> GetInstance() const
     {
-        DeviceQueueIndices queueIndices;
-
-        for(auto request : m_Requests)
-        {
-            int familyIndex = 0;
-            for(auto queueFamily : VulkanPhysicalDevice::EnumerateDeviceQueueFamilyProperties(device))
-            {                
-                // Doesn't support required operations
-                if((queueFamily.queueFlags & request.Flags) != request.Flags)
-                    continue;
-                
-                // Doesn't support present operations
-                if(request.Surface.has_value())
-                {
-                    if(!CheckSurfaceSupport(device, familyIndex, request.Surface.value()))
-                        continue;
-                }
-                    
-                queueIndices.Indices.insert(std::make_pair(request.Flags, familyIndex));
-                break;
-                
-                ++familyIndex;
-            }
-        }
-
-        return queueIndices;
+        return m_Instance;
     }
+
+    std::vector<VulkanQueueRequest> GetRequests() const
+    {
+        return m_Requests;
+    }
+
+    std::vector<VulkanQueueRequest> GetRequests()
+    {
+        return m_Requests;
+    }
+
+private:
 
     static bool CheckSurfaceSupport(VkPhysicalDevice device, uint32_t familyIndex, VkSurfaceKHR surface)
     {
@@ -166,20 +191,15 @@ private:
         return surfaceSupport;
     }
 
-// Unused
-    unsigned int CountQueueFamilyTypes(VkQueueFlags flags) const
+    // Return the number of enabled flags
+    unsigned int CountQueueFamilyFlags(VkQueueFlags flags) const
     {
-        unsigned int count = 0;
+        std::bitset<32> set(flags);
 
-        if (flags & VK_QUEUE_GRAPHICS_BIT) count++;
-        if (flags & VK_QUEUE_COMPUTE_BIT) count++;
-        if (flags & VK_QUEUE_TRANSFER_BIT) count++;
-        if (flags & VK_QUEUE_SPARSE_BINDING_BIT) count++;
-        if (flags & VK_QUEUE_PROTECTED_BIT) count++;
-
-        return count;   
+        return set.count();   
     }
 
+    // Keeping for now for inspiration for fixing the device selection
     std::vector<VulkanQueueRequest> CleanRequests(std::vector<VulkanQueueRequest> requests)
     {
         std::vector<VulkanQueueRequest> cleaned;
@@ -205,153 +225,37 @@ private:
         return cleaned;
     }
 
-    struct FamilyData
-    {
-        VkQueueFlags Flags;
-        uint32_t Count;
-        std::vector<std::vector<VulkanQueueFamilyInfo>::iterator> Iterators;
-    };
-
-    void Thinking()
-    {
-        std::vector<std::vector<FamilyData>> perDeviceQueueData;
-        
-        size_t deviceIndex = 0;
-        for(auto& device : m_DeviceInfos)
-        {
-            std::vector<FamilyData> deviceQueueData;
-            auto familyIterator = device.QueueFamilies.begin();
-
-            for(; familyIterator != device.QueueFamilies.end(); ++familyIterator)
-            {
-                auto& family = *familyIterator;
-
-                auto result = std::find_if(deviceQueueData.begin(), deviceQueueData.end(), [&](const FamilyData& val)
-                {
-                    return SanitizeQueueFlags(val.Flags) == SanitizeQueueFlags(family.Properties.queueFlags);
-                });
-                
-                if(result == deviceQueueData.end())
-                {
-                    FamilyData familyData;
-                    familyData.Flags = family.Properties.queueFlags;
-                    familyData.Count = family.Properties.queueCount;
-                    familyData.Iterators.push_back(familyIterator);
-
-                    deviceQueueData.emplace_back(familyData);
-                }
-                else
-                {
-                    result->Count += family.Properties.queueCount;
-                    result->Iterators.push_back(familyIterator);
-                }
-            }
-
-            perDeviceQueueData.emplace_back(deviceQueueData);
-            ++deviceIndex;
-        }
-
-        Log.Info("Available queue types and counts");
-        for(auto& family : perDeviceQueueData)
-        {
-            for(auto& queue : family)
-            {
-                Log.Info(FlagsToString(queue.Flags), ": ", queue.Count);
-            }
-        }
-
-        auto cleanRequests = CleanRequests(m_Requests);
-
-        Log.Info("Cleaned queue requests");
-        for(auto& req : cleanRequests)
-        {
-            Log.Info(FlagsToString(req.Flags), " : ", req.Count);
-        }
-
-        for(auto& family : perDeviceQueueData)
-        {
-            bool isDeviceSuitable = false;
-
-            for(auto& req : cleanRequests)
-            {
-
-                auto suitableFamilies = FindSuitableFamilies(family, req);
-
-                Log.Info(suitableFamilies.size(), " Suitable families for ", FlagsToString(req.Flags));
-                for(auto fam : suitableFamilies)
-                {
-                    Log.Info("  ", FlagsToString(fam->Flags));
-                }
-
-                // for(auto& queue : family)
-                // {
-                //     VkQueueFlags sanitizedRequestFlags = SanitizeQueueFlags(req.Flags);
-                //     VkQueueFlags sanitizedQueueFlags = SanitizeQueueFlags(queue.Flags);
-                    
-                //     uint32_t requestFlagCount = CountQueueFamilyTypes(req.Flags);
-                //     uint32_t queueFlagCount = CountQueueFamilyTypes(queue.Flags);
-
-                //     if(queueFlagCount < requestFlagCount)
-                //         continue;
-                    
-                //     if((sanitizedQueueFlags & sanitizedRequestFlags) != sanitizedRequestFlags)
-                //         continue;
-
-                //     if((sanitizedQueueFlags | sanitizedRequestFlags) == sanitizedRequestFlags) // Perfect match
-                //     {
-                //         if(req.Count > queue.Count)
-                //             continue;
-
-                //     }
-                //     else // Extra flags are present
-                //     {
-                //         if(req.Count > queue.Count)
-                //             continue;
-                //     }
-
-                // }
-            }
-        }
-    }
-
-    std::vector<std::vector<FamilyData>::iterator> FindSuitableFamilies(std::vector<FamilyData>& family, const VulkanQueueRequest& request)
-    {
-        std::vector<std::vector<FamilyData>::iterator> result;
-
-        auto queueIterator = family.begin();
-        for(; queueIterator != family.end(); ++queueIterator)
-        {
-            VkQueueFlags requestFlags = SanitizeQueueFlags(request.Flags);
-            VkQueueFlags queueFlags = SanitizeQueueFlags(queueIterator->Flags);
-
-            if(FlagsArePresent(requestFlags, queueFlags))
-            {
-                // Log.Info(FlagsToString(requestFlags), " - ", FlagsToString(queueFlags), " = ", FlagsArePresent(requestFlags, queueFlags));
-                result.emplace_back(queueIterator);
-            }
-        }
-
-        std::sort(result.begin(), result.end(), [](const std::vector<FamilyData>::iterator& it1, const std::vector<FamilyData>::iterator& it2)
-        {
-            return it1->Count < it2->Count;
-        });
-
-        return result;
-    }
-
     // return true if flags1 are present in flags2
-    bool FlagsArePresent(VkQueueFlags flags1, VkQueueFlags flags2)
+    bool FlagsArePresent(VkQueueFlags flags1, VkQueueFlags flags2) const
     {
         return ((flags2 & flags1) == flags1);
     }   
 
-// Unused
-    bool DoesDeviceSupportRequests(const VulkanDeviceInfo& deviceInfo) const
+    // Return all families containing atleast request.Flags flags in ascending order
+    std::vector<VulkanQueueFamilyInfo> FindSuitableFamilies(const VulkanDeviceInfo& deviceInfo, const VulkanQueueRequest& request) const
+    {
+        std::vector<VulkanQueueFamilyInfo> result;
+
+        std::copy_if(deviceInfo.QueueFamilies.begin(), deviceInfo.QueueFamilies.end(), std::back_inserter(result), [&](const VulkanQueueFamilyInfo& info)
+        {
+            return FlagsArePresent(request.Flags, info.Properties.queueFlags);
+        });
+
+        std::sort(result.begin(), result.end(), [&](const VulkanQueueFamilyInfo& lhs, const VulkanQueueFamilyInfo& rhs)
+        {
+            return CountQueueFamilyFlags(lhs.Properties.queueFlags) < CountQueueFamilyFlags(rhs.Properties.queueFlags);
+        });
+
+        return result;
+    };
+
+    // Returns true if the device can provide all requested queues
+    bool DoesDeviceSupportRequests(const VulkanDeviceInfo& deviceInfo)
     {
         size_t requestCount = m_Requests.size();
 
         // Each element represents the number of queues requested of that type which we will attempt to fulfill. ie. at the end it should all be zeros
-        std::vector<uint32_t> unfulfilledRequestedQueueCount;
+        std::vector<int> unfulfilledRequestedQueueCount;
 
         for(auto& request : m_Requests)
         {
@@ -359,41 +263,56 @@ private:
         }
         
         // Each element represents the number of queues left of that type of family of queues
-        std::vector<uint32_t> queueFamilyQueuesLeft;
+        std::vector<int> familyQueuesLeft;
 
         for(auto& family : deviceInfo.QueueFamilies)
         {
-            queueFamilyQueuesLeft.push_back(family.Properties.queueCount);
+            familyQueuesLeft.push_back(family.Properties.queueCount);
         }
 
         // Attempt to fullfil each queue request by assigning queues from the physical device to match the requests
         for(size_t i = 0; i < requestCount; i++)
         {
-            const VulkanQueueRequest& request = m_Requests[i];
+            VulkanQueueRequest& request = m_Requests[i];
 
-            bool canBeFulfilled = false;
+            auto suitableFamilies = FindSuitableFamilies(deviceInfo, request);
 
-            for(auto& family : deviceInfo.QueueFamilies)
+            for(auto family : suitableFamilies)
             {
-                int requestedQueueTypeCount = CountQueueFamilyTypes(request.Flags);
-                int supportedQueueTypeCount = CountQueueFamilyTypes(family.Properties.queueFlags);
-
-                if(supportedQueueTypeCount < requestedQueueTypeCount)
-                    continue;
-                
-                int extraFlags;
-                if((request.Flags & family.Properties.queueFlags) == request.Flags)
+                if(familyQueuesLeft[family.Index] == 0)
                 {
-
+                    Log.Info("Family queues hit zero");
+                    continue;
                 }
+                    
+                int count = std::min(familyQueuesLeft[family.Index], unfulfilledRequestedQueueCount[i]);
+
+                if(count == 0)
+                {
+                    Log.Info("Request fulfilled");
+
+                    break;
+                }
+                
+                unfulfilledRequestedQueueCount[i] -= count;
+                familyQueuesLeft[family.Index] -= count;
+
+                request.Indices.emplace_back(count, family.Index);
+            }
+
+            if(unfulfilledRequestedQueueCount[i] > 0)
+            {
+                Log.Info("Unfulfilled request");
+                return false;
             }
         }
+
+        return true;
     }
 
-    std::string FlagsToString(VkQueueFlags flags)
+    std::string StandardFlagsToString(VkQueueFlags flags)
     {
-        std::string str;
-        str.append("{ ");
+        std::string str("{ ");
         
         if(flags & VK_QUEUE_GRAPHICS_BIT)
             str.append("Graphics ");
@@ -427,29 +346,21 @@ private:
     }
 
 // Unused
-    int ScoreDevice(const VulkanDeviceInfo& deviceInfo) const
+    int ScoreDevice(const VulkanDeviceInfo& deviceInfo)
     {
         int score = 0;
 
         if(deviceInfo.Properties.deviceType == VK_PHYSICAL_DEVICE_TYPE_DISCRETE_GPU)
             score += 1000;
         
-        auto result = DoesDeviceSupportRequests(deviceInfo);
-    }
+        bool result = DoesDeviceSupportRequests(deviceInfo);
 
-// Unused
-    std::vector<int> ScoreDevices() const
-    {
-        std::vector<int> scores;
-
-        for(auto& deviceInfo : m_DeviceInfos)
+        if(!result)
         {
-            auto result = ScoreDevice(deviceInfo);
-
-            scores.push_back(result);
+            return -1;
         }
 
-        return scores;
+        return score;
     }
 
 private:

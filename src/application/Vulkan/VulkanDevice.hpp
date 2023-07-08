@@ -1,14 +1,17 @@
 #pragma once
 
-#include "VulkanPhysicalDevice.hpp"
+#include "VulkanDeviceSelector.hpp"
 
 class VulkanDevice
 {
 public:
-    VulkanDevice(std::shared_ptr<VulkanInstance> instance, std::shared_ptr<VulkanPhysicalDevice> physicalDevice, const std::vector<VulkanQueueRequest>& queueRequests)
-        : m_Instance(instance), m_PhysicalDevice(physicalDevice), m_Device(VK_NULL_HANDLE)
+    VulkanDevice(std::shared_ptr<VulkanDeviceSelector> deviceSelector)
+        : m_Instance(deviceSelector->GetInstance()), m_PhysicalDevice(VK_NULL_HANDLE), m_Device(VK_NULL_HANDLE)
     {
-        auto queueCreateInfos = GenerateCreateInfos(queueRequests);
+        m_PhysicalDevice = deviceSelector->SelectDevice();
+
+        auto requests = deviceSelector->GetRequests();
+        auto queueCreateInfos = GenerateCreateInfos(requests);
 
         // Using default values for now
         VkPhysicalDeviceFeatures deviceFeatures{};
@@ -21,7 +24,7 @@ public:
 
         createInfo.enabledExtensionCount = 0;
         
-        std::vector<const char*> ValidationLayers = instance->GetEnabledLayers();
+        std::vector<const char*> ValidationLayers = m_Instance->GetEnabledLayers();
 
         if(m_Instance->Debugging())
         {
@@ -59,23 +62,28 @@ public:
     } 
 
 private:
-    std::vector<VkDeviceQueueCreateInfo> GenerateCreateInfos(const std::vector<VulkanQueueRequest>& requests)
+    std::vector<VkDeviceQueueCreateInfo> GenerateCreateInfos(std::vector<VulkanQueueRequest>& requests)
     {
         std::vector<VkDeviceQueueCreateInfo> result;
 
-        DeviceQueueIndices indices = m_PhysicalDevice->GetQueueFamilyIndices();
         for(size_t i = 0; i < requests.size(); i++)
         {
-            const VulkanQueueRequest& request = requests[i];
+            VulkanQueueRequest& request = requests[i];
 
-            VkDeviceQueueCreateInfo queueCreateInfo{};
-            queueCreateInfo.sType = VK_STRUCTURE_TYPE_DEVICE_QUEUE_CREATE_INFO;
-            queueCreateInfo.queueFamilyIndex = indices.Indices.find(request.Flags)->second;
-            queueCreateInfo.queueCount = request.Count;
-
-            queueCreateInfo.pQueuePriorities = request.Priorities.data();
+            uint32_t priorityOffset = 0;
             
-            result.emplace_back(queueCreateInfo);
+            for(auto& data : request.Indices)
+            {
+                VkDeviceQueueCreateInfo queueCreateInfo{};
+                queueCreateInfo.sType = VK_STRUCTURE_TYPE_DEVICE_QUEUE_CREATE_INFO;
+                queueCreateInfo.queueFamilyIndex = data.Index;
+                queueCreateInfo.queueCount = data.Count;
+
+                queueCreateInfo.pQueuePriorities = &(requests[i].Priorities[priorityOffset]);
+
+                priorityOffset += data.Count;
+                result.emplace_back(queueCreateInfo);
+            }
         }
 
         return result;

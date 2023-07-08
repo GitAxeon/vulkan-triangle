@@ -9,36 +9,11 @@
 #include <optional>
 #include <map>
 
-// I have misunderstood the Vulkan queue creation so it needs to be fixed later
-struct VulkanQueueRequest
-{
-    VkQueueFlags Flags;
-    std::optional<VkSurfaceKHR> Surface;
-    uint32_t Count;
-    std::vector<float> Priorities;
-};
-
-struct DeviceQueueIndices
-{
-    std::map<VkQueueFlags, uint32_t> Indices;
-
-    bool Valid(std::vector<VulkanQueueRequest>& requests)
-    {
-        for(auto request : requests)
-        {
-            if(Indices.find(request.Flags) == Indices.end())
-                return false;
-        }
-
-        return true;
-    }
-};
-
 class VulkanPhysicalDevice
 {
 public:
-    VulkanPhysicalDevice(std::shared_ptr<VulkanInstance> vulkanInstance, VkPhysicalDevice device, DeviceQueueIndices indices)
-        : m_Instance(vulkanInstance),  m_PhysicalDevice(device), m_QueueFamilyIndices(indices)
+    VulkanPhysicalDevice(std::shared_ptr<VulkanInstance> vulkanInstance, VkPhysicalDevice device)
+        : m_Instance(vulkanInstance),  m_PhysicalDevice(device)
     {
         Log.Info("Created VulkanPhysicalDevice");
     }
@@ -52,10 +27,10 @@ public:
         return m_PhysicalDevice;
     }
 
-    DeviceQueueIndices GetQueueFamilyIndices() const
-    {
-        return m_QueueFamilyIndices;
-    }
+    // DeviceQueueIndices GetQueueFamilyIndices() const
+    // {
+    //     return m_QueueFamilyIndices;
+    // }
 
     static std::vector<VkPhysicalDevice> EnumeratePhysicalDevices(std::shared_ptr<VulkanInstance> vulkanInstance)
     {
@@ -82,6 +57,15 @@ public:
         }
 
         return devices;
+    }
+
+    static VkPhysicalDevice GetDevice(std::shared_ptr<VulkanInstance> instance, int id)
+    {
+        auto devices = EnumeratePhysicalDevices(instance);
+
+        assert(id < devices.size());
+
+        return devices[id];
     }
 
     VkPhysicalDeviceProperties GetDeviceProperties()
@@ -137,5 +121,4 @@ public:
 private:
     VkPhysicalDevice m_PhysicalDevice = VK_NULL_HANDLE;
     std::shared_ptr<VulkanInstance> m_Instance;
-    DeviceQueueIndices m_QueueFamilyIndices;
 };
