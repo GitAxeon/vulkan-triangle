@@ -93,6 +93,13 @@ void RunApplication()
     req1.Priorities.push_back(1.0f);
     queueRequests.emplace_back(req1);
 
+    VulkanQueueRequest req2;
+    req2.Flags =  VK_QUEUE_GRAPHICS_BIT | VK_QUEUE_TRANSFER_BIT;
+    req2.Surface = renderingContext.GetSurface();
+    req2.Count = 1;
+    req2.Priorities.push_back(1.0f);
+    queueRequests.emplace_back(req2);
+
     Log.Info("Creating device selector");
     std::shared_ptr<VulkanDeviceSelector> selector = std::make_shared<VulkanDeviceSelector>(vulkanInstance, queueRequests);
 
