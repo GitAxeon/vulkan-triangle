@@ -18,7 +18,7 @@ VulkanInstance::VulkanInstance(const VulkanInstanceCreateInfo& instanceCreateInf
     for(auto props : properties)
     {
         Extensions.insert(props.extensionName);
-        Log.Info("    ",i++, ": ", props.extensionName);
+        Log.Info("    ", i++ , ": ", props.extensionName);
     }
 
     if(!CheckExtensionSupport())
@@ -66,6 +66,19 @@ VulkanInstance::VulkanInstance(const VulkanInstanceCreateInfo& instanceCreateInf
         EnabledLayers.insert(ext);
 
     Log.Info("Created Vulkan instance");
+    
+    uint32_t apiVersion;
+    if(vkEnumerateInstanceVersion(&apiVersion) != VK_SUCCESS)
+    {
+        Log.Error("Failed to retrieve Vulkan api version");
+    }
+    else
+    {
+        Log.Info("Using Vulkan api version ", 
+        VK_API_VERSION_MAJOR(apiVersion), ".",
+        VK_API_VERSION_MINOR(apiVersion), ".",
+        VK_API_VERSION_PATCH(apiVersion));
+    }
 }
 
 VulkanInstance::~VulkanInstance()

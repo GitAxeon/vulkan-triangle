@@ -2,6 +2,8 @@
 
 #include "VulkanDeviceSelector.hpp"
 
+#include <map>
+
 class VulkanDevice
 {
 public:
@@ -11,15 +13,20 @@ public:
         m_PhysicalDevice = deviceSelector->SelectDevice();
 
         auto requests = deviceSelector->GetRequests();
-        auto queueCreateInfos = GenerateCreateInfos(requests);
+
+        Log.Info("Combining requests into FamilyInfo");
+        auto familyInfos = CombineRequets(requests);
+
+        Log.Info("Generating QueueCreateInfos based on familyInfos");
+        auto createInfos = GenerateCreateInfos(familyInfos, requests);
 
         // Using default values for now
         VkPhysicalDeviceFeatures deviceFeatures{};
 
         VkDeviceCreateInfo createInfo{};
         createInfo.sType = VK_STRUCTURE_TYPE_DEVICE_CREATE_INFO;
-        createInfo.pQueueCreateInfos = queueCreateInfos.data();
-        createInfo.queueCreateInfoCount = queueCreateInfos.size();
+        createInfo.pQueueCreateInfos = createInfos.data();
+        createInfo.queueCreateInfoCount = createInfos.size();
         createInfo.pEnabledFeatures = &deviceFeatures;
 
         createInfo.enabledExtensionCount = 0;
@@ -53,40 +60,96 @@ public:
         Log.Info("Destructed VulkanDevice");
     }
 
-    VkQueue GetQueue(const VulkanQueueRequest& request, int index)
+    VkQueue GetQueue(const VulkanQueueRequest& request, int queueIndex)
     {
+        if(queueIndex >= request.QueueLocations.size())
+            return VK_NULL_HANDLE;
+        
+        QueueLocation loc = request.QueueLocations[queueIndex];
+
         VkQueue queue;
-
-        if(request.Indices[0].Count > index)
-            vkGetDeviceQueue(m_Device, request.Indices[0].Index, index, &queue);
-
-
+        vkGetDeviceQueue(m_Device, loc.FamilyIndex, loc.Index, &queue);
+        
         return queue;
-    } 
+    }
 
 private:
-    std::vector<VkDeviceQueueCreateInfo> GenerateCreateInfos(std::vector<VulkanQueueRequest>& requests)
+    struct QueueFamilyInfo
     {
-        std::vector<VkDeviceQueueCreateInfo> result;
+        QueueFamilyInfo() : QueueCount(0), QueuePriorities() {}
 
-        for(size_t i = 0; i < requests.size(); i++)
+        int QueueCount;
+        std::vector<float> QueuePriorities;
+    };
+
+    std::map<uint32_t, QueueFamilyInfo> CombineRequets(std::vector<VulkanQueueRequest>& requests)
+    {
+        std::map<uint32_t, QueueFamilyInfo> result;
+        
+        for(auto& request : requests)
         {
-            VulkanQueueRequest& request = requests[i];
+            size_t priorityIndex = 0;
 
-            uint32_t priorityOffset = 0;
-            
-            for(auto& data : request.Indices)
+            for(auto& queueLocation : request.QueueLocations)
             {
-                VkDeviceQueueCreateInfo queueCreateInfo{};
-                queueCreateInfo.sType = VK_STRUCTURE_TYPE_DEVICE_QUEUE_CREATE_INFO;
-                queueCreateInfo.queueFamilyIndex = data.Index;
-                queueCreateInfo.queueCount = data.Count;
+                uint32_t familyIndex = queueLocation.FamilyIndex;
 
-                queueCreateInfo.pQueuePriorities = &(requests[i].Priorities[priorityOffset]);
+                auto it = result.find(familyIndex);
 
-                priorityOffset += data.Count;
-                result.emplace_back(queueCreateInfo);
+                if (it == result.end())
+                {
+                    result.insert({familyIndex, {}});
+                }
+
+                QueueFamilyInfo& queueFamilyInfo = result[familyIndex];
+                queueFamilyInfo.QueueCount++;
+
+                uint32_t queueIndex = queueLocation.Index;
+
+                if (queueFamilyInfo.QueuePriorities.size() < queueIndex + 1)
+                {
+                    queueFamilyInfo.QueuePriorities.resize(queueIndex + 1);
+                }
+
+                queueFamilyInfo.QueuePriorities[queueIndex] = request.Priorities[priorityIndex];
+                
+                priorityIndex++;
             }
+        }
+
+        return result;
+    }
+
+    std::vector<VkDeviceQueueCreateInfo> GenerateCreateInfos(std::map<uint32_t, QueueFamilyInfo>& familyInfos, std::vector<VulkanQueueRequest>& requests)
+    {        
+        std::vector<VkDeviceQueueCreateInfo> result;
+        
+        for(auto& [familyIndex, familyInfo] : familyInfos)
+        {
+            VkDeviceQueueCreateInfo queueCreateInfo {};
+            queueCreateInfo.sType = VK_STRUCTURE_TYPE_DEVICE_QUEUE_CREATE_INFO;
+            queueCreateInfo.queueFamilyIndex = familyIndex;
+            queueCreateInfo.queueCount = familyInfo.QueueCount;
+            queueCreateInfo.pQueuePriorities = familyInfo.QueuePriorities.data();
+
+            result.emplace_back(queueCreateInfo);
+        }
+
+        Log.Info("GenerateCreateInfos");
+        for(auto value : result)
+        {
+            std::string message = "Family[" + std::to_string(value.queueFamilyIndex) +"] [";
+
+            for(size_t i = 0; i < value.queueCount; i++)
+            {
+                message.append(std::to_string(value.pQueuePriorities[i]));
+
+                if(i < value.queueCount - 1)
+                    message.append(", ");
+            }
+            message.append("]");
+            
+            Log.Info(message);
         }
 
         return result;

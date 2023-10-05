@@ -8,16 +8,6 @@
 #include <map>
 #include <bitset>
 
-// Represents a single queue type and it's limits
-struct QueueFamilyIndices
-{
-    // Number of queues
-    uint32_t Count;
-
-    // Index of the queue type within the family
-    uint32_t Index;
-};
-
 struct QueueLocation
 {
     // Index of the queue family
@@ -33,9 +23,6 @@ struct VulkanQueueRequest
     std::optional<VkSurfaceKHR> Surface;
     uint32_t Count;
     std::vector<float> Priorities;
-
-    // This vector gets filled with device family indices during the checkup phase
-    std::vector<QueueFamilyIndices> Indices;
 
     // Gets filled with locations to requested queues within the physical device
     std::vector<QueueLocation> QueueLocations;
@@ -302,31 +289,28 @@ private:
                 }
                     
                 int count = std::min(familyQueuesLeft[family.Index], unfulfilledRequestedQueueCount[i]);
-
+                
                 if(count == 0)
                 {
-                    Log.Info("Request fulfilled");
-
                     break;
                 }
 
-                Log.Info("Loop start");
                 for (size_t i = 0; i < count; i++)
                 {
+                    // calculate new index to be used within a family
                     uint32_t index = family.Properties.queueCount - familyQueuesLeft[family.Index] + i;
-                    Log.Info("FamilyIndex: ", family.Index, " Index: ", index);
+
                     request.QueueLocations.emplace_back(family.Index, index);
                 }
 
+                // These could be done inside the for above but I honestly can't be asked to do that rn
                 unfulfilledRequestedQueueCount[i] -= count;
                 familyQueuesLeft[family.Index] -= count;
-
-                request.Indices.emplace_back(count, family.Index);
             }
 
             if(unfulfilledRequestedQueueCount[i] > 0)
             {
-                Log.Info("Unfulfilled request");
+                Log.Info("Not all requested queues could be provided");
                 return false;
             }
         }

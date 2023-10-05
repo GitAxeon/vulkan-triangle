@@ -47,13 +47,13 @@ static VKAPI_ATTR VkBool32 VKAPI_CALL DebugCallback(
     switch(messageSeverity)
     {
         case VK_DEBUG_UTILS_MESSAGE_SEVERITY_ERROR_BIT_EXT:
-            Log.Error(msg, pCallbackData->pMessage);
+            Log.Error(msg, pCallbackData->pMessage, "\n");
         break;
         case VK_DEBUG_UTILS_MESSAGE_SEVERITY_WARNING_BIT_EXT:
-            Log.Warn(msg, pCallbackData->pMessage);
+            Log.Warn(msg, pCallbackData->pMessage, "\n");
         break;
         default: //VK_DEBUG_UTILS_MESSAGE_SEVERITY_INFO_BIT_EXT:
-            Log.Info(msg, pCallbackData->pMessage);
+            Log.Info(msg, pCallbackData->pMessage, "\n");
         break;
     }
 
@@ -90,29 +90,7 @@ void RunApplication()
     req1.Flags = VK_QUEUE_GRAPHICS_BIT;
     req1.Surface = renderingContext.GetSurface();
     req1.Count = 1;
-    req1.Priorities.push_back(1.0f);
     queueRequests.emplace_back(req1);
-
-    VulkanQueueRequest req2;
-    req2.Flags =  VK_QUEUE_TRANSFER_BIT;
-    req2.Surface = std::nullopt;
-    req2.Count = 1;
-    req2.Priorities.push_back(1.0f);
-    queueRequests.emplace_back(req2);
-
-    VulkanQueueRequest req3;
-    req3.Flags = VK_QUEUE_SPARSE_BINDING_BIT;
-    req3.Surface = std::nullopt;
-    req3.Count = 1;
-    req3.Priorities.push_back(1.0f);
-    queueRequests.emplace_back(req3);
-
-    VulkanQueueRequest req4;
-    req4.Flags = VK_QUEUE_COMPUTE_BIT;
-    req4.Surface = std::nullopt;
-    req4.Count = 1;
-    req4.Priorities.push_back(1.0f);
-    queueRequests.emplace_back(req4);
 
     Log.Info("Creating device selector");
     std::shared_ptr<VulkanDeviceSelector> selector = std::make_shared<VulkanDeviceSelector>(vulkanInstance, queueRequests);
@@ -121,7 +99,7 @@ void RunApplication()
     std::shared_ptr<VulkanDevice> device = std::make_shared<VulkanDevice>(selector);
 
     // Nah man this is scuffed xdd will fix it later tho
-    VkQueue graphicsQueue = device->GetQueue(queueRequests[0], 0);
+    VkQueue graphicsQueue = device->GetQueue(req1, 0);
 
     Log.Info("Entering EventLoop");
     while(window.IsOpen())
