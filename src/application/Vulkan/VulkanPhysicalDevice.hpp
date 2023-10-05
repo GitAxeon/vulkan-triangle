@@ -63,7 +63,7 @@ public:
     {
         auto devices = EnumeratePhysicalDevices(instance);
 
-        assert(id < devices.size());
+        assert((id > -1) && (id < devices.size()));
 
         return devices[id];
     }

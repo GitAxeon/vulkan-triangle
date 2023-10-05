@@ -8,9 +8,22 @@
 #include <map>
 #include <bitset>
 
+// Represents a single queue type and it's limits
 struct QueueFamilyIndices
 {
+    // Number of queues
     uint32_t Count;
+
+    // Index of the queue type within the family
+    uint32_t Index;
+};
+
+struct QueueLocation
+{
+    // Index of the queue family
+    uint32_t FamilyIndex;
+
+    // Queue index within the family
     uint32_t Index;
 };
     
@@ -23,6 +36,9 @@ struct VulkanQueueRequest
 
     // This vector gets filled with device family indices during the checkup phase
     std::vector<QueueFamilyIndices> Indices;
+
+    // Gets filled with locations to requested queues within the physical device
+    std::vector<QueueLocation> QueueLocations;
 };
 
 struct VulkanQueueFamilyInfo
@@ -204,21 +220,21 @@ private:
     {
         std::vector<VulkanQueueRequest> cleaned;
 
-        for(auto& requirement :  requests)
+        for (auto &request : requests)
         {
             auto result = std::find_if(cleaned.begin(), cleaned.end(), [&](VulkanQueueRequest value)
             {
-                return requirement.Flags == value.Flags;
+                return FlagsArePresent(request.Flags, value.Flags);
             });
 
             if(result == cleaned.end())
             {
-                cleaned.emplace_back(requirement);
+                cleaned.emplace_back(request);
             }
             else
             {
-                result->Count += requirement.Count;
-                result->Priorities.insert(result->Priorities.begin(), requirement.Priorities.begin(), requirement.Priorities.end());
+                result->Count += request.Count;
+                result->Priorities.insert(result->Priorities.begin(), request.Priorities.begin(), request.Priorities.end());
             }
         }
 
@@ -231,7 +247,7 @@ private:
         return ((flags2 & flags1) == flags1);
     }   
 
-    // Return all families containing atleast request.Flags flags in ascending order
+    // Return all families containing atleast |request.Flags| flags (ascending order)
     std::vector<VulkanQueueFamilyInfo> FindSuitableFamilies(const VulkanDeviceInfo& deviceInfo, const VulkanQueueRequest& request) const
     {
         std::vector<VulkanQueueFamilyInfo> result;
@@ -262,7 +278,7 @@ private:
             unfulfilledRequestedQueueCount.push_back(request.Count);
         }
         
-        // Each element represents the number of queues left of that type of family of queues
+        // Each element represents the number of queues left at that family
         std::vector<int> familyQueuesLeft;
 
         for(auto& family : deviceInfo.QueueFamilies)
@@ -293,7 +309,15 @@ private:
 
                     break;
                 }
-                
+
+                Log.Info("Loop start");
+                for (size_t i = 0; i < count; i++)
+                {
+                    uint32_t index = family.Properties.queueCount - familyQueuesLeft[family.Index] + i;
+                    Log.Info("FamilyIndex: ", family.Index, " Index: ", index);
+                    request.QueueLocations.emplace_back(family.Index, index);
+                }
+
                 unfulfilledRequestedQueueCount[i] -= count;
                 familyQueuesLeft[family.Index] -= count;
 
@@ -337,8 +361,8 @@ private:
     VkQueueFlags SanitizeQueueFlags(VkQueueFlags flags)
     {
         const VkQueueFlags validFlagMask = VK_QUEUE_GRAPHICS_BIT |
-            VK_QUEUE_COMPUTE_BIT | 
-            VK_QUEUE_TRANSFER_BIT | 
+            VK_QUEUE_COMPUTE_BIT |
+            VK_QUEUE_TRANSFER_BIT |
             VK_QUEUE_SPARSE_BINDING_BIT |
             VK_QUEUE_PROTECTED_BIT;
 

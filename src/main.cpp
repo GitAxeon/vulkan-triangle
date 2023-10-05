@@ -94,19 +94,31 @@ void RunApplication()
     queueRequests.emplace_back(req1);
 
     VulkanQueueRequest req2;
-    req2.Flags =  VK_QUEUE_GRAPHICS_BIT | VK_QUEUE_TRANSFER_BIT;
-    req2.Surface = renderingContext.GetSurface();
+    req2.Flags =  VK_QUEUE_TRANSFER_BIT;
+    req2.Surface = std::nullopt;
     req2.Count = 1;
     req2.Priorities.push_back(1.0f);
     queueRequests.emplace_back(req2);
+
+    VulkanQueueRequest req3;
+    req3.Flags = VK_QUEUE_SPARSE_BINDING_BIT;
+    req3.Surface = std::nullopt;
+    req3.Count = 1;
+    req3.Priorities.push_back(1.0f);
+    queueRequests.emplace_back(req3);
+
+    VulkanQueueRequest req4;
+    req4.Flags = VK_QUEUE_COMPUTE_BIT;
+    req4.Surface = std::nullopt;
+    req4.Count = 1;
+    req4.Priorities.push_back(1.0f);
+    queueRequests.emplace_back(req4);
 
     Log.Info("Creating device selector");
     std::shared_ptr<VulkanDeviceSelector> selector = std::make_shared<VulkanDeviceSelector>(vulkanInstance, queueRequests);
 
     Log.Info("Creating logical device");
     std::shared_ptr<VulkanDevice> device = std::make_shared<VulkanDevice>(selector);
-    
-    queueRequests = selector->GetRequests();
 
     // Nah man this is scuffed xdd will fix it later tho
     VkQueue graphicsQueue = device->GetQueue(queueRequests[0], 0);
