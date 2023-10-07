@@ -28,7 +28,7 @@ public:
         createInfo.pQueueCreateInfos = createInfos.data();
         createInfo.queueCreateInfoCount = createInfos.size();
         createInfo.pEnabledFeatures = &deviceFeatures;
-
+        
         createInfo.enabledExtensionCount = 0;
         
         std::vector<const char*> ValidationLayers = m_Instance->GetEnabledLayers();
@@ -82,6 +82,7 @@ private:
         std::vector<float> QueuePriorities;
     };
 
+    // Collects and arranges queue information from each request to QueueFamilies
     std::map<uint32_t, QueueFamilyInfo> CombineRequets(std::vector<VulkanQueueRequest>& requests)
     {
         std::map<uint32_t, QueueFamilyInfo> result;

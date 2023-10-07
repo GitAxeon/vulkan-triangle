@@ -71,10 +71,8 @@ void RunApplication()
     VulkanInstanceCreateInfo createInfo;
     createInfo.ApplicationName = info.Title;
     createInfo.EnableValidationLayers = true;
-
     createInfo.Extensions = SDLContext.GetVulkanInstanceExtensions();
     createInfo.Extensions.push_back(VK_EXT_DEBUG_UTILS_EXTENSION_NAME);
-    
     createInfo.ValidationLayers = { "VK_LAYER_KHRONOS_validation" };
 
     std::shared_ptr<VulkanInstance> vulkanInstance = std::make_shared<VulkanInstance>(createInfo);
@@ -92,13 +90,23 @@ void RunApplication()
     req1.Count = 1;
     queueRequests.emplace_back(req1);
 
+    std::vector<std::string> requiredDeviceExtensions =
+    {
+        VK_KHR_SWAPCHAIN_EXTENSION_NAME
+    };
+
+    VulkanDeviceRequirements requirements;
+    requirements.Queues.push_back(req1);
+    requirements.Extensions.push_back(VK_KHR_SWAPCHAIN_EXTENSION_NAME);
+
     Log.Info("Creating device selector");
-    std::shared_ptr<VulkanDeviceSelector> selector = std::make_shared<VulkanDeviceSelector>(vulkanInstance, queueRequests);
+    std::shared_ptr<VulkanDeviceSelector> selector = std::make_shared<VulkanDeviceSelector>(vulkanInstance, requiredDeviceExtensions, queueRequests);
+
+    VulkanPhysicalDevice testDevice(vulkanInstance, VulkanPhysicalDevice::GetDevice(vulkanInstance, 0), 0);
 
     Log.Info("Creating logical device");
     std::shared_ptr<VulkanDevice> device = std::make_shared<VulkanDevice>(selector);
 
-    // Nah man this is scuffed xdd will fix it later tho
     VkQueue graphicsQueue = device->GetQueue(req1, 0);
 
     Log.Info("Entering EventLoop");

@@ -8,56 +8,39 @@
 #include <map>
 #include <bitset>
 
-struct QueueLocation
+struct VulkanDeviceRequirements
 {
-    // Index of the queue family
-    uint32_t FamilyIndex;
-
-    // Queue index within the family
-    uint32_t Index;
+    std::vector<VulkanQueueRequest> Queues;
+    std::vector<std::string> Extensions;
 };
-    
-struct VulkanQueueRequest
-{
-    VkQueueFlags Flags;
-    std::optional<VkSurfaceKHR> Surface;
-    uint32_t Count;
-    std::vector<float> Priorities;
-
-    // Gets filled with locations to requested queues within the physical device
-    std::vector<QueueLocation> QueueLocations;
-};
-
-struct VulkanQueueFamilyInfo
-{
-    VkQueueFamilyProperties Properties;
-
-    // consists of indices to m_Requests vector. (Present support was requested and can be provided by the queue family)
-    std::set<uint32_t> PresentSupport;
-    uint32_t Index;
-};
-
-struct VulkanDeviceInfo
-{
-    VkPhysicalDeviceProperties Properties;
-    VkPhysicalDeviceFeatures Features;
-    
-    std::vector<VulkanQueueFamilyInfo> QueueFamilies;
-};
-
-/*
-    I still haven't quite understood how the queue creation is supposed to work
-    so the indices in the VulkanQueueRequest struct are non standard ie. not working properly
-    but I might just move on so I get things done. I'll come back here soon enough to fix things
-*/
 
 class VulkanDeviceSelector
 {
 public:
-    VulkanDeviceSelector(std::shared_ptr<VulkanInstance> instance, std::vector<VulkanQueueRequest>& queueRequests)
-        : m_Instance(instance), m_Requests(queueRequests)
+    VulkanDeviceSelector(std::shared_ptr<VulkanInstance> vulkanInstance, const VulkanDeviceRequirements& deviceRequirements)
+        : m_Instance(vulkanInstance)
     {
-        m_DeviceInfos = CollectDeviceInformation(instance, m_Requests);
+        std::vector<VulkanPhysicalDevice> physicalDevices;
+
+
+        // Maybe instance should do this part and just return a vector of VulkanPhysicalDevice since the instance sorta owns everything?
+        uint32_t physicalDeviceIndex = 0;
+        for(auto physicalDeviceHandle : VulkanPhysicalDevice::EnumeratePhysicalDevices(vulkanInstance))
+        {
+            physicalDevices.emplace_back(vulkanInstance, physicalDeviceHandle, physicalDeviceIndex);
+            physicalDeviceIndex++;
+        }
+
+        // Maybe the device Requirements can do this part? 
+        for(auto& request : m_Requests)
+            while(request.Priorities.size() <= request.Count)
+                request.Priorities.push_back(1.0f);
+    }
+
+    VulkanDeviceSelector(std::shared_ptr<VulkanInstance> instance, std::vector<std::string>& requiredDeviceExtensions, std::vector<VulkanQueueRequest>& queueRequests)
+        : m_Instance(instance), m_RequiredDeviceExtensions(requiredDeviceExtensions), m_Requests(queueRequests)
+    {
+        m_DeviceInfos = CollectDeviceInformation(instance, requiredDeviceExtensions, m_Requests);
 
         for(auto& request : m_Requests)
             while(request.Priorities.size() <= request.Count)
@@ -119,16 +102,30 @@ public:
 
     static std::vector<VulkanDeviceInfo> CollectDeviceInformation(
         std::shared_ptr<VulkanInstance> instance,
+        std::vector<std::string>& requiredDeviceExtensions,
         const std::vector<VulkanQueueRequest>& requests
     )
     {
         std::vector<VulkanDeviceInfo> deviceInfos;
-
+        
+        uint32_t deviceIndex = 0;
         for(auto device : VulkanPhysicalDevice::EnumeratePhysicalDevices(instance))
         {
             VulkanDeviceInfo deviceInfo;
+            deviceInfo.Index = deviceIndex;
             deviceInfo.Properties = VulkanPhysicalDevice::GetDeviceProperties(device);
             deviceInfo.Features = VulkanPhysicalDevice::GetDeviceFeatures(device);
+            deviceInfo.ExtensionProperties = VulkanPhysicalDevice::GetDeviceExtensions(device);
+
+            Log.Info("Supported device extensions:");
+            size_t index = 0;
+            for(auto& extensionProperties : deviceInfo.ExtensionProperties)
+            {
+                deviceInfo.Extensions.push_back(extensionProperties.extensionName);
+                Log.Info("    ", index, ": ", extensionProperties.extensionName);
+                index++;
+            }
+            Log.Info("End of extensions");
             
             uint32_t familyIndex = 0;
             for(auto queueFamily : VulkanPhysicalDevice::EnumerateDeviceQueueFamilyProperties(device))
@@ -137,15 +134,15 @@ public:
                 queueFamilyInfo.Properties = queueFamily;
                 queueFamilyInfo.Index = familyIndex;
 
-                uint32_t requestIndex = 0;
+                // To figure wether the queue family supports present operations we loop through requests  to find one that needs present support
+                // Assuming that if the queue supports one surface it will support all surfaces
                 for(auto request : requests)
                 {
                     if(request.Surface.has_value() && CheckSurfaceSupport(device, familyIndex, request.Surface.value()))
                     {
-                        queueFamilyInfo.PresentSupport.insert(requestIndex);
+                        queueFamilyInfo.PresentSupport = true;
+                        break;
                     }
-
-                    ++requestIndex;
                 }
                 
                 deviceInfo.QueueFamilies.push_back(queueFamilyInfo);
@@ -153,6 +150,7 @@ public:
             }
 
             deviceInfos.push_back(deviceInfo);
+            deviceIndex++;
         }
 
         return deviceInfos;
@@ -202,32 +200,6 @@ private:
         return set.count();   
     }
 
-    // Keeping for now for inspiration for fixing the device selection
-    std::vector<VulkanQueueRequest> CleanRequests(std::vector<VulkanQueueRequest> requests)
-    {
-        std::vector<VulkanQueueRequest> cleaned;
-
-        for (auto &request : requests)
-        {
-            auto result = std::find_if(cleaned.begin(), cleaned.end(), [&](VulkanQueueRequest value)
-            {
-                return FlagsArePresent(request.Flags, value.Flags);
-            });
-
-            if(result == cleaned.end())
-            {
-                cleaned.emplace_back(request);
-            }
-            else
-            {
-                result->Count += request.Count;
-                result->Priorities.insert(result->Priorities.begin(), request.Priorities.begin(), request.Priorities.end());
-            }
-        }
-
-        return cleaned;
-    }
-
     // return true if flags1 are present in flags2
     bool FlagsArePresent(VkQueueFlags flags1, VkQueueFlags flags2) const
     {
@@ -235,13 +207,13 @@ private:
     }   
 
     // Return all families containing atleast |request.Flags| flags (ascending order)
-    std::vector<VulkanQueueFamilyInfo> FindSuitableFamilies(const VulkanDeviceInfo& deviceInfo, const VulkanQueueRequest& request) const
+    std::vector<VulkanQueueFamilyInfo> FindSuitableFamilies(VulkanDeviceInfo& deviceInfo, const VulkanQueueRequest& request)
     {
         std::vector<VulkanQueueFamilyInfo> result;
 
         std::copy_if(deviceInfo.QueueFamilies.begin(), deviceInfo.QueueFamilies.end(), std::back_inserter(result), [&](const VulkanQueueFamilyInfo& info)
         {
-            return FlagsArePresent(request.Flags, info.Properties.queueFlags);
+            return FlagsArePresent(request.Flags, info.Properties.queueFlags) && DoesDeviceSupportExtensions(deviceInfo);
         });
 
         std::sort(result.begin(), result.end(), [&](const VulkanQueueFamilyInfo& lhs, const VulkanQueueFamilyInfo& rhs)
@@ -250,10 +222,46 @@ private:
         });
 
         return result;
-    };
+    }
+
+    bool DoesDeviceSupportExtensions(VulkanDeviceInfo& deviceInfo)
+    {
+        if(m_RequiredDeviceExtensions.size() == 0)
+            return true;
+
+        Log.Info("Checking whether the device supports required extensions");
+        std::set<std::string> required(m_RequiredDeviceExtensions.begin(), m_RequiredDeviceExtensions.end());
+
+        Log.Info("Requested extensions");
+        for(auto ext : required)
+        {
+            Log.Info("    ", ext);
+        }
+        
+        Log.Info("Following extensions are available");
+        for(auto extension : deviceInfo.Extensions)
+        {
+            if(required.erase(extension) > 0)
+            {
+                Log.Info("    ", extension);
+                deviceInfo.EnabledExtensions.push_back(extension);
+            }
+        }
+
+        if(required.size() > 0)
+        {
+            Log.Info("Not all required device extensions were available");
+            for(auto ext : required)
+            {
+                Log.Info("    ", ext);
+            }
+        }
+
+        return required.empty();
+    }
 
     // Returns true if the device can provide all requested queues
-    bool DoesDeviceSupportRequests(const VulkanDeviceInfo& deviceInfo)
+    bool DoesDeviceSupportRequests(VulkanDeviceInfo& deviceInfo)
     {
         size_t requestCount = m_Requests.size();
 
@@ -354,7 +362,7 @@ private:
     }
 
 // Unused
-    int ScoreDevice(const VulkanDeviceInfo& deviceInfo)
+    int ScoreDevice(VulkanDeviceInfo& deviceInfo)
     {
         int score = 0;
 
@@ -362,7 +370,7 @@ private:
             score += 1000;
         
         bool result = DoesDeviceSupportRequests(deviceInfo);
-
+        
         if(!result)
         {
             return -1;
@@ -374,5 +382,6 @@ private:
 private:
     std::shared_ptr<VulkanInstance> m_Instance;
     std::vector<VulkanQueueRequest> m_Requests;
+    std::vector<std::string> m_RequiredDeviceExtensions;
     std::vector<VulkanDeviceInfo> m_DeviceInfos;
 };

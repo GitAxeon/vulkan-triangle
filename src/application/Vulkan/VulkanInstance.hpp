@@ -14,17 +14,17 @@ struct VulkanInstanceCreateInfo
     std::vector<const char*> Extensions;
     std::vector<const char*> ValidationLayers;
 
-
     VulkanInstanceCreateInfo()
     :   ApplicationName("Default application name"),
-        EnableValidationLayers(true)
+        EnableValidationLayers(true),
+        Extensions({}),
+        ValidationLayers({})
     {}
 };
 
 class VulkanInstance
 {
 public:
-
     VulkanInstance(const VulkanInstanceCreateInfo& createInfo);
     ~VulkanInstance();
 
@@ -50,7 +50,12 @@ private:
     VkInstance m_Instance;
     VulkanInstanceCreateInfo m_CreateInfo;
 
+    // List of all supported extensions
     std::set<const char*> Extensions;
+
+    // List of enabled extensions
     std::set<const char*> EnabledExtensions;
+    
+    // List of enabled validation layers
     std::set<const char*> EnabledLayers;
 };
