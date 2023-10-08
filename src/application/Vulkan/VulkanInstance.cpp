@@ -1,4 +1,5 @@
 #include "VulkanInstance.hpp"
+#include "VulkanPhysicalDevice.hpp"
 #include "../debug/Log.hpp"
 
 VulkanInstance::VulkanInstance(const VulkanInstanceCreateInfo& instanceCreateInfo)
@@ -220,4 +221,18 @@ bool VulkanInstance::CheckLayerSupport()
     }
 
     return true;
+}
+
+std::vector<std::shared_ptr<VulkanPhysicalDevice>> VulkanInstance::GetPhysicalDevices()
+{
+    std::vector<std::shared_ptr<VulkanPhysicalDevice>> physicalDevices;
+    
+    uint32_t physicalDeviceIndex = 0;
+    for(auto physicalDeviceHandle : VulkanPhysicalDevice::EnumeratePhysicalDevices(shared_from_this()))
+    {
+        physicalDevices.emplace_back(std::make_shared<VulkanPhysicalDevice>(shared_from_this(), physicalDeviceHandle, physicalDeviceIndex));
+        physicalDeviceIndex++;
+    }
+
+    return physicalDevices;
 }

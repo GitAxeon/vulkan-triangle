@@ -82,31 +82,22 @@ void RunApplication()
     Window window(info);
     RenderingContext renderingContext(window, vulkanInstance);
 
-    std::vector<VulkanQueueRequest> queueRequests;
-    
     VulkanQueueRequest req1;
     req1.Flags = VK_QUEUE_GRAPHICS_BIT;
     req1.Surface = renderingContext.GetSurface();
     req1.Count = 1;
-    queueRequests.emplace_back(req1);
-
-    std::vector<std::string> requiredDeviceExtensions =
-    {
-        VK_KHR_SWAPCHAIN_EXTENSION_NAME
-    };
 
     VulkanDeviceRequirements requirements;
     requirements.Queues.push_back(req1);
     requirements.Extensions.push_back(VK_KHR_SWAPCHAIN_EXTENSION_NAME);
 
     Log.Info("Creating device selector");
-    std::shared_ptr<VulkanDeviceSelector> selector = std::make_shared<VulkanDeviceSelector>(vulkanInstance, requiredDeviceExtensions, queueRequests);
-
-    VulkanPhysicalDevice testDevice(vulkanInstance, VulkanPhysicalDevice::GetDevice(vulkanInstance, 0), 0);
-
+    std::shared_ptr<VulkanDeviceSelector> selector = std::make_shared<VulkanDeviceSelector>(vulkanInstance, requirements);
+    
     Log.Info("Creating logical device");
-    std::shared_ptr<VulkanDevice> device = std::make_shared<VulkanDevice>(selector);
+    std::shared_ptr<VulkanDevice> device = selector->GetDevice();
 
+    Log.Info("Requesting test queue");
     VkQueue graphicsQueue = device->GetQueue(req1, 0);
 
     Log.Info("Entering EventLoop");

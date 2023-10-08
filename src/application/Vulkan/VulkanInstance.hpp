@@ -1,11 +1,14 @@
 #pragma once
 
+#include "VulkanPhysicalDevice.hpp"
+
 #include <vulkan/vulkan.hpp>
 #include <SDL3/SDL_vulkan.h>
 
 #include <set>
 #include <string>
 #include <vector>
+#include <memory>
 
 struct VulkanInstanceCreateInfo
 {
@@ -22,7 +25,7 @@ struct VulkanInstanceCreateInfo
     {}
 };
 
-class VulkanInstance
+class VulkanInstance : public std::enable_shared_from_this<VulkanInstance>
 {
 public:
     VulkanInstance(const VulkanInstanceCreateInfo& createInfo);
@@ -39,6 +42,8 @@ public:
     {
         return std::vector<const char*>(EnabledLayers.begin(), EnabledLayers.end());
     }
+
+    std::vector<std::shared_ptr<VulkanPhysicalDevice>> GetPhysicalDevices();
 
     static std::vector<VkExtensionProperties> EnumerateExtensions();
     static std::vector<VkLayerProperties> EnumerateLayers();

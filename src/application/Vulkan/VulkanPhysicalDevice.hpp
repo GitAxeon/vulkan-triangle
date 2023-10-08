@@ -1,7 +1,7 @@
 #pragma once
 
 #include "../debug/Log.hpp"
-#include "VulkanInstance.hpp"
+// #include "VulkanInstance.hpp"
 
 #include <vulkan/vulkan.hpp>
 #include <SDL3/SDL_vulkan.h>
@@ -9,25 +9,25 @@
 #include <optional>
 #include <map>
 
-struct QueueLocation
-{
-    // Index of the queue family
-    uint32_t FamilyIndex;
+// struct QueueLocation
+// {
+//     // Index of the queue family
+//     uint32_t FamilyIndex;
 
-    // Queue index within the family
-    uint32_t Index;
-};
+//     // Queue index within the family
+//     uint32_t Index;
+// };
     
-struct VulkanQueueRequest
-{
-    VkQueueFlags Flags;
-    std::optional<VkSurfaceKHR> Surface;
-    uint32_t Count;
-    std::vector<float> Priorities;
+// struct VulkanQueueRequest
+// {
+//     VkQueueFlags Flags;
+//     std::optional<VkSurfaceKHR> Surface;
+//     uint32_t Count;
+//     std::vector<float> Priorities;
 
-    // Gets filled with locations to requested queues within the physical device
-    std::vector<QueueLocation> QueueLocations;
-};
+//     // Gets filled with locations to requested queues within the physical device
+//     std::vector<QueueLocation> QueueLocations;
+// };
 
 struct VulkanQueueFamilyInfo
 {
@@ -49,140 +49,37 @@ struct VulkanDeviceInfo
     uint32_t Index;
 };
 
+class VulkanInstance;
 class VulkanPhysicalDevice
 {
 public:
-    VulkanPhysicalDevice(std::shared_ptr<VulkanInstance> vulkanInstance, VkPhysicalDevice deviceHandle, uint32_t deviceId)
-        : m_Instance(vulkanInstance), m_PhysicalDevice(deviceHandle), m_PhysicalDeviceIndex(deviceId)
-    {
-        QueryDeviceProperties();
-        QueryDeviceFeatures();
-        QueryDeviceExtensionProperties();
-        
-        // m_Extension contains only the names of available extensions
-        for(auto& extension : m_ExtensionProperties)
-        {
-            m_Extensions.push_back(extension.extensionName);
-        }
+    VulkanPhysicalDevice(std::shared_ptr<VulkanInstance> vulkanInstance, VkPhysicalDevice deviceHandle, uint32_t deviceId);
 
-        QueryDeviceQueueFamilyInfos();
-    }
-
-    void QueryDeviceProperties()
-    {
-        vkGetPhysicalDeviceProperties(m_PhysicalDevice, &m_Properties);
-    };
-
+private:
+    void QueryDeviceProperties();
+    void QueryDeviceFeatures();
+    void QueryDeviceExtensionProperties();
+    void QueryDeviceQueueFamilyInfos();
+    
+public:
     const VkPhysicalDeviceProperties& GetProperties() { return m_Properties;}
-
-    void QueryDeviceFeatures()
-    {
-        vkGetPhysicalDeviceFeatures(m_PhysicalDevice, &m_Features);
-    }
-
     const VkPhysicalDeviceFeatures& GetFeatures() { return m_Features; }
-
-    void QueryDeviceExtensionProperties()
-    {
-        uint32_t extensionCount;
-        VkResult operationResult;
-
-        operationResult= vkEnumerateDeviceExtensionProperties(m_PhysicalDevice, nullptr, &extensionCount, nullptr);
-
-        if(operationResult != VK_SUCCESS)
-        {
-            Log.Error("vkEnumerateDeviceExtensionProperties #1 call failed");
-            throw std::runtime_error("Failed to query physical device extension properties");
-        }
-
-        // Resize the vector to accommodate the extensions
-        m_ExtensionProperties.resize(extensionCount);
-
-        operationResult = vkEnumerateDeviceExtensionProperties(m_PhysicalDevice, nullptr, &extensionCount, m_ExtensionProperties.data());
-
-        if(operationResult != VK_SUCCESS)
-        {
-            Log.Error("vkEnumerateDeviceExtensionProperties #2 call failed");
-            throw std::runtime_error("Failed to query physical device extension properties");
-        }
-    }
-
     const std::vector<VkExtensionProperties>& GetExtensionProperties() { return m_ExtensionProperties; }
     const std::vector<std::string>& GetExtensions() { return m_Extensions; }
     const std::vector<std::string>& GetEnabledExtensions() { return m_EnabledExtensions; }
-
-    void QueryDeviceQueueFamilyInfos()
-    {
-        uint32_t familyIndex = 0;
-        for(auto familyProperties : EnumerateDeviceQueueFamilyProperties())
-        {
-            VulkanQueueFamilyInfo familyInfo;
-            familyInfo.Properties = familyProperties;
-            familyInfo.Index = familyIndex;
-            familyInfo.PresentSupport = false;
-
-            m_QueueFamilies.push_back(familyInfo);
-
-            familyIndex++;
-        }
-    }
-
     const std::vector<VulkanQueueFamilyInfo>& GetQueueFamilyInfos() { return m_QueueFamilies; }
 
 
-    VulkanPhysicalDevice(std::shared_ptr<VulkanInstance> vulkanInstance, VkPhysicalDevice device)
-        : m_Instance(vulkanInstance),  m_PhysicalDevice(device)
-    {
-        Log.Info("Created VulkanPhysicalDevice");
-    }
+    VulkanPhysicalDevice(std::shared_ptr<VulkanInstance> vulkanInstance, VkPhysicalDevice device);
     
-    ~VulkanPhysicalDevice()
-    {
-        Log.Info("Destructed VulkanPhysicalDevice");
-    }
+    ~VulkanPhysicalDevice();
 
-    VkPhysicalDevice GetHandle() const 
-    {
-        return m_PhysicalDevice;
-    }
+    VkPhysicalDevice GetHandle() const { return m_PhysicalDevice; }
+    std::shared_ptr<VulkanInstance> GetInstance() const { return m_Instance; }
 
-    static std::vector<VkPhysicalDevice> EnumeratePhysicalDevices(std::shared_ptr<VulkanInstance> vulkanInstance)
-    {
-        uint32_t deviceCount = 0;
-        VkResult operationResult;
-        
-        operationResult = vkEnumeratePhysicalDevices(vulkanInstance->GetInstance(), &deviceCount, nullptr);
+    static std::vector<VkPhysicalDevice> EnumeratePhysicalDevices(std::shared_ptr<VulkanInstance> vulkanInstance);
 
-        if(operationResult != VK_SUCCESS)
-        {
-            Log.Error("vkEnumeratePhysicalDevices failed at getting deviceCount VkResult", operationResult);
-        }
-
-        if(deviceCount == 0)
-        {
-            Log.Info("Failed to find GPUs with Vulkan support!");
-            throw std::runtime_error("No suitable GraphicsDevice found");
-        }
-
-        std::vector<VkPhysicalDevice> devices(deviceCount);
-        operationResult = vkEnumeratePhysicalDevices(vulkanInstance->GetInstance(), &deviceCount, devices.data());
-
-        if(operationResult != VK_SUCCESS)
-        {
-            Log.Error("vkEnumeratePhysicalDevices failed listing devices VkResult", operationResult);
-        }
-
-        return devices;
-    }
-
-    static VkPhysicalDevice GetDevice(std::shared_ptr<VulkanInstance> instance, int id)
-    {
-        auto devices = EnumeratePhysicalDevices(instance);
-        
-        assert((id > -1) && (id < devices.size()));
-
-        return devices[id];
-    }
+    static VkPhysicalDevice GetDevice(std::shared_ptr<VulkanInstance> instance, int id);
 
     VkPhysicalDeviceProperties GetDeviceProperties()
     {
@@ -257,6 +154,10 @@ public:
     };
 
 private:
+    friend class VulkanDeviceSelector;
+    void EnableExtension(const std::string& extensions);
+
+private:
     std::shared_ptr<VulkanInstance> m_Instance;
     VkPhysicalDevice m_PhysicalDevice = VK_NULL_HANDLE;
 
@@ -267,7 +168,7 @@ private:
 
     // Contains only the names of available extensions
     std::vector<std::string> m_Extensions;
-
+    
     // Contains names of enabled extensions. This vector gets filled by the DeviceSelector
     std::vector<std::string> m_EnabledExtensions;
     
