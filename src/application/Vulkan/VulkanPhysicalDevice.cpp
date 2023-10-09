@@ -14,7 +14,25 @@ VulkanPhysicalDevice::VulkanPhysicalDevice(std::shared_ptr<VulkanInstance> vulka
         m_Extensions.push_back(extension.extensionName);
     }
 
-    QueryDeviceQueueFamilyInfos();   
+    QueryDeviceQueueFamilyInfos();
+    
+    Log.Info("Created VulkanPhysicalDevice");
+}
+
+VulkanPhysicalDevice::~VulkanPhysicalDevice()
+{
+    Log.Info("Destructed VulkanPhysicalDevice");
+}
+
+std::vector<VkQueueFamilyProperties> VulkanPhysicalDevice::EnumerateDeviceQueueFamilyProperties()
+{
+    uint32_t queueFamilyCount = 0;
+    vkGetPhysicalDeviceQueueFamilyProperties(m_PhysicalDevice, &queueFamilyCount, nullptr);
+
+    std::vector<VkQueueFamilyProperties> queueFamilies(queueFamilyCount);
+    vkGetPhysicalDeviceQueueFamilyProperties(m_PhysicalDevice, &queueFamilyCount, queueFamilies.data());
+    
+    return queueFamilies;
 }
 
 void VulkanPhysicalDevice::QueryDeviceProperties()
@@ -33,7 +51,7 @@ void VulkanPhysicalDevice::QueryDeviceExtensionProperties()
     uint32_t extensionCount;
     VkResult operationResult;
 
-    operationResult= vkEnumerateDeviceExtensionProperties(m_PhysicalDevice, nullptr, &extensionCount, nullptr);
+    operationResult = vkEnumerateDeviceExtensionProperties(m_PhysicalDevice, nullptr, &extensionCount, nullptr);
 
     if(operationResult != VK_SUCCESS)
     {
@@ -69,15 +87,55 @@ void VulkanPhysicalDevice::QueryDeviceQueueFamilyInfos()
     }
 }
 
-VulkanPhysicalDevice::VulkanPhysicalDevice(std::shared_ptr<VulkanInstance> vulkanInstance, VkPhysicalDevice device)
-    : m_Instance(vulkanInstance),  m_PhysicalDevice(device)
+const SwapchainSupportDetails VulkanPhysicalDevice::GetSwapchainSupportDetails(std::shared_ptr<VkSurfaceKHR> surface)
 {
-    Log.Info("Created VulkanPhysicalDevice");
-}
+    SwapchainSupportDetails swapchainSupportDetails;
+    vkGetPhysicalDeviceSurfaceCapabilitiesKHR(m_PhysicalDevice, *surface, &swapchainSupportDetails.Capabilities);
 
-VulkanPhysicalDevice::~VulkanPhysicalDevice()
-{
-    Log.Info("Destructed VulkanPhysicalDevice");
+    uint32_t formatCount;
+    VkResult operationResult;
+    operationResult = vkGetPhysicalDeviceSurfaceFormatsKHR(m_PhysicalDevice, *surface, &formatCount, nullptr);
+
+    if(operationResult != VK_SUCCESS)
+    {
+        Log.Error("VkGetPhysicalDeviceSurfaceFormatsKHR #1 failed");
+        throw std::runtime_error("Failed to query device surface formats count");
+    }
+
+    if(formatCount > 0)
+    {
+        swapchainSupportDetails.Formats.resize(formatCount);
+        operationResult = vkGetPhysicalDeviceSurfaceFormatsKHR(m_PhysicalDevice, *surface, &formatCount, swapchainSupportDetails.Formats.data());
+
+        if(operationResult != VK_SUCCESS)
+        {
+            Log.Error("VkGetPhysicalDeviceSurfaceFormatsKHR #2 failed");
+            throw std::runtime_error("Failed to query device surface formats");
+        }
+    }
+
+    uint32_t presentModeCount;
+    operationResult = vkGetPhysicalDeviceSurfacePresentModesKHR(m_PhysicalDevice, *surface, &presentModeCount, nullptr);
+
+    if(operationResult != VK_SUCCESS)
+    {
+        Log.Error("VkGetPhysicalDeviceSurfacePresentModeKHR #1 failed");
+        throw std::runtime_error("Failed to query device present mode count");
+    }
+
+    if(presentModeCount > 0)
+    {
+        swapchainSupportDetails.PresentModes.resize(presentModeCount);
+        operationResult = vkGetPhysicalDeviceSurfacePresentModesKHR(m_PhysicalDevice, *surface, &presentModeCount, swapchainSupportDetails.PresentModes.data());
+
+        if(operationResult != VK_SUCCESS)
+        {
+            Log.Error("VkGetPhysicalDeviceSurfacePresentModesKHR #2 failed");
+            throw std::runtime_error("Failed to query device present modes");
+        }
+    }
+
+    return swapchainSupportDetails;
 }
 
 std::vector<VkPhysicalDevice> VulkanPhysicalDevice::EnumeratePhysicalDevices(std::shared_ptr<VulkanInstance> vulkanInstance)

@@ -16,7 +16,23 @@ VulkanDevice::VulkanDevice(std::shared_ptr<VulkanPhysicalDevice> physicalDevice,
     createInfo.queueCreateInfoCount = createInfos.size();
     createInfo.pEnabledFeatures = &deviceFeatures;
     
-    createInfo.enabledExtensionCount = 0;
+    std::vector<std::string> enabledExtension = physicalDevice->GetEnabledExtensions();
+    std::vector<const char*> cStrExtensions;
+
+    if(enabledExtension.size() == 0)
+    {
+        createInfo.enabledExtensionCount = 0;
+    }
+    else
+    {
+        for(auto& extension : enabledExtension)
+        {
+            cStrExtensions.push_back(extension.c_str());
+        }
+
+        createInfo.enabledExtensionCount = static_cast<uint32_t>(cStrExtensions.size());
+        createInfo.ppEnabledExtensionNames = cStrExtensions.data();
+    }
     
     std::vector<const char*> ValidationLayers;
 
