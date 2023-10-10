@@ -276,6 +276,25 @@ bool VulkanDeviceSelector::DoesDeviceSupportRequests(std::shared_ptr<VulkanPhysi
     {
         VulkanQueueRequest& request = m_DeviceRequirements.Queues[i];
 
+        if(request.Surface.has_value())
+        {
+            auto swapchainDetails = physicalDevice->GetSwapchainSupportDetails(request.Surface.value());
+
+            if(swapchainDetails.Formats.empty())
+            {
+                Log.Info("Physical device provided 0 swapchain formats");
+                // No swapchain formats available
+                return false;
+            }
+
+            if(swapchainDetails.PresentModes.empty())
+            {
+                Log.Info("Physical device provided 0 swapchain present modes");
+                // No present modes available
+                return false;
+            }
+        }
+
         auto suitableFamilies = FindSuitableFamilies(physicalDevice, request.Flags);
 
         for(auto family : suitableFamilies)
@@ -358,6 +377,8 @@ int VulkanDeviceSelector::ScoreDevice(std::shared_ptr<VulkanPhysicalDevice>& phy
     if(physicalDevice->GetProperties().deviceType == VK_PHYSICAL_DEVICE_TYPE_DISCRETE_GPU)
         score += 1000;
     
+    // Do check for extension support before checking the requests
+    // Current  reason being the swapchain. Check the extension first, capabilities second
     bool extensionSupport = DoesDeviceSupportExtensions(physicalDevice);
 
     if(!extensionSupport)

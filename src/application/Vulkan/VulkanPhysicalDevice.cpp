@@ -87,14 +87,14 @@ void VulkanPhysicalDevice::QueryDeviceQueueFamilyInfos()
     }
 }
 
-const SwapchainSupportDetails VulkanPhysicalDevice::GetSwapchainSupportDetails(std::shared_ptr<VkSurfaceKHR> surface)
+const SwapchainSupportDetails VulkanPhysicalDevice::GetSwapchainSupportDetails(VkSurfaceKHR surface)
 {
     SwapchainSupportDetails swapchainSupportDetails;
-    vkGetPhysicalDeviceSurfaceCapabilitiesKHR(m_PhysicalDevice, *surface, &swapchainSupportDetails.Capabilities);
+    vkGetPhysicalDeviceSurfaceCapabilitiesKHR(m_PhysicalDevice, surface, &swapchainSupportDetails.Capabilities);
 
     uint32_t formatCount;
     VkResult operationResult;
-    operationResult = vkGetPhysicalDeviceSurfaceFormatsKHR(m_PhysicalDevice, *surface, &formatCount, nullptr);
+    operationResult = vkGetPhysicalDeviceSurfaceFormatsKHR(m_PhysicalDevice, surface, &formatCount, nullptr);
 
     if(operationResult != VK_SUCCESS)
     {
@@ -105,7 +105,7 @@ const SwapchainSupportDetails VulkanPhysicalDevice::GetSwapchainSupportDetails(s
     if(formatCount > 0)
     {
         swapchainSupportDetails.Formats.resize(formatCount);
-        operationResult = vkGetPhysicalDeviceSurfaceFormatsKHR(m_PhysicalDevice, *surface, &formatCount, swapchainSupportDetails.Formats.data());
+        operationResult = vkGetPhysicalDeviceSurfaceFormatsKHR(m_PhysicalDevice, surface, &formatCount, swapchainSupportDetails.Formats.data());
 
         if(operationResult != VK_SUCCESS)
         {
@@ -115,7 +115,7 @@ const SwapchainSupportDetails VulkanPhysicalDevice::GetSwapchainSupportDetails(s
     }
 
     uint32_t presentModeCount;
-    operationResult = vkGetPhysicalDeviceSurfacePresentModesKHR(m_PhysicalDevice, *surface, &presentModeCount, nullptr);
+    operationResult = vkGetPhysicalDeviceSurfacePresentModesKHR(m_PhysicalDevice, surface, &presentModeCount, nullptr);
 
     if(operationResult != VK_SUCCESS)
     {
@@ -126,7 +126,7 @@ const SwapchainSupportDetails VulkanPhysicalDevice::GetSwapchainSupportDetails(s
     if(presentModeCount > 0)
     {
         swapchainSupportDetails.PresentModes.resize(presentModeCount);
-        operationResult = vkGetPhysicalDeviceSurfacePresentModesKHR(m_PhysicalDevice, *surface, &presentModeCount, swapchainSupportDetails.PresentModes.data());
+        operationResult = vkGetPhysicalDeviceSurfacePresentModesKHR(m_PhysicalDevice, surface, &presentModeCount, swapchainSupportDetails.PresentModes.data());
 
         if(operationResult != VK_SUCCESS)
         {

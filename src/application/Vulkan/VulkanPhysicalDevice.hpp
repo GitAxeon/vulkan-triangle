@@ -46,7 +46,7 @@ public:
     const std::vector<std::string>& GetExtensions() { return m_Extensions; }
     const std::vector<std::string>& GetEnabledExtensions() { return m_EnabledExtensions; }
     const std::vector<VulkanQueueFamilyInfo>& GetQueueFamilyInfos() { return m_QueueFamilies; }
-    const SwapchainSupportDetails GetSwapchainSupportDetails(std::shared_ptr<VkSurfaceKHR> surface);
+    const SwapchainSupportDetails GetSwapchainSupportDetails(VkSurfaceKHR surface);
     
     ~VulkanPhysicalDevice();
 
