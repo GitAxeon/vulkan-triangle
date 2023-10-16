@@ -65,6 +65,11 @@ VulkanDevice::~VulkanDevice()
     Log.Info("Destructed VulkanDevice");
 }
 
+const SwapchainSupportDetails VulkanDevice::GetSwapchainSupportDetails(VkSurfaceKHR surface)
+{
+    return m_PhysicalDevice->GetSwapchainSupportDetails(surface);
+}
+
 
 VkQueue VulkanDevice::GetQueue(const VulkanQueueRequest& request, int queueIndex)
 {

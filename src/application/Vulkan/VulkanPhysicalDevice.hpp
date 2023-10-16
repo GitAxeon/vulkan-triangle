@@ -94,13 +94,11 @@ public:
 
     //     return properties;
     // };
-
 private:
     void QueryDeviceProperties();
     void QueryDeviceFeatures();
     void QueryDeviceExtensionProperties();
     void QueryDeviceQueueFamilyInfos();
-    void QueryDeviceSwapchainSupport(std::shared_ptr<VkSurfaceKHR> surface);
 
     friend class VulkanDeviceSelector;
     void EnableExtension(const std::string& extensions);
@@ -125,3 +123,6 @@ private:
     
     uint32_t m_PhysicalDeviceIndex;
 };
+
+std::string PresentModeToString(VkPresentModeKHR presentMode);
+std::string FormatToString(VkFormat format);

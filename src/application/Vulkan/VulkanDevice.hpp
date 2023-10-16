@@ -19,6 +19,7 @@ public:
     VulkanDevice(const VulkanDevice&) = delete;
     
     VulkanDevice(std::shared_ptr<VulkanPhysicalDevice> physicalDevice, VulkanDeviceRequirements& requirements);
+    const SwapchainSupportDetails GetSwapchainSupportDetails(VkSurfaceKHR surface);
 
     ~VulkanDevice();
 

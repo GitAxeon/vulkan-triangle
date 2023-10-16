@@ -40,6 +40,7 @@ private:
 
 /*
     Further down the pipeline the VulkanQueueRequest get sorted into QueueFamilyCreateInfo
+    "Private"
 */ 
 struct QueueFamilyCreateInfo
 {
