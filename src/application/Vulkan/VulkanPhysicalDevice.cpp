@@ -135,20 +135,6 @@ const SwapchainSupportDetails VulkanPhysicalDevice::GetSwapchainSupportDetails(V
         }
     }
 
-    Log.Info("Listing available present modes");
-
-    for(auto val : swapchainSupportDetails.PresentModes)
-    {
-        Log.Info("    ", PresentModeToString(val));
-    }
-
-    Log.Info("Listing available image formats");
-
-    for(auto surfaceFormat : swapchainSupportDetails.Formats)
-    {
-        Log.Info("    ", FormatToString(surfaceFormat.format));
-    }
-
     return swapchainSupportDetails;
 }
 

@@ -4,6 +4,7 @@
 
 #include <map>
 #include <optional>
+#include <set>
 #include <vector>
 
 /*
@@ -29,6 +30,8 @@ struct VulkanQueueRequest
     uint32_t Count;
     std::vector<float> Priorities;
 
+    std::set<uint32_t> GetFamilyIndices();
+    
 private:
     friend class VulkanDeviceRequirements;
     friend class VulkanDeviceSelector;

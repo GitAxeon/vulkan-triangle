@@ -6,6 +6,7 @@
 #include "application/Vulkan/VulkanDeviceSelector.hpp"
 #include "application/Vulkan/VulkanDevice.hpp"
 #include "application/Vulkan/VulkanSwapchain.hpp"
+#include "application/Vulkan/VulkanImageView.hpp"
 
 #include "application/RenderingContext.hpp"
 
@@ -84,7 +85,7 @@ void RunApplication()
     RenderingContext renderingContext(window, vulkanInstance);
 
     VulkanQueueRequest req1;
-    req1.Flags = VK_QUEUE_GRAPHICS_BIT;
+    req1.Flags = VK_QUEUE_GRAPHICS_BIT | VK_QUEUE_TRANSFER_BIT;
     req1.Surface = renderingContext.GetSurface();
     req1.Count = 1;
 
@@ -101,41 +102,28 @@ void RunApplication()
     Log.Info("Requesting test queue");
     VkQueue graphicsQueue = device->GetQueue(req1, 0);
 
-    SwapchainSupportDetails swapchainDetails = device->GetSwapchainSupportDetails(renderingContext.GetSurface());
-
     VulkanSwapchainPreferences swapchainPreferences;
     swapchainPreferences.SurfaceFormat.format = VK_FORMAT_B8G8R8A8_SRGB;
     swapchainPreferences.SurfaceFormat.colorSpace = VK_COLOR_SPACE_SRGB_NONLINEAR_KHR;
     swapchainPreferences.PresentMode = VK_PRESENT_MODE_MAILBOX_KHR;
+    swapchainPreferences.ImageCount = 2;
+    swapchainPreferences.ImageUsage = VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT | VK_IMAGE_USAGE_TRANSFER_SRC_BIT;
+    swapchainPreferences.SharingMode = VK_SHARING_MODE_CONCURRENT;
+    swapchainPreferences.QueueFamilyIndices = req1.GetFamilyIndices();
+    swapchainPreferences.CompositeAlpha = VK_COMPOSITE_ALPHA_OPAQUE_BIT_KHR;
 
-    // VkFormat preferredFormat = VK_FORMAT_B8G8R8A8_SRGB;
-    // VkColorSpaceKHR preferredColorSpace = VK_COLOR_SPACE_SRGB_NONLINEAR_KHR;
+    std::shared_ptr<VulkanSwapchain> swapchain = std::make_shared<VulkanSwapchain>(device, renderingContext.GetSurface(), swapchainPreferences);
 
-    // auto surfaceFormatIterator = std::find_if(swapchainDetails.Formats.begin(), swapchainDetails.Formats.end(), [&preferredFormat, &preferredColorSpace](const VkSurfaceFormatKHR& format)
-    // {
-    //     return format.format == preferredFormat && format.colorSpace == preferredColorSpace;
-    // });
+    auto swapchainImages = swapchain->GetSwapchainImages();
+    
+    Log.Info("Swapchain image count: ", swapchainImages.size());
 
-    // if(surfaceFormatIterator == swapchainDetails.Formats.end())
-    //     Log.Warn("Device doesn't support preferred VkSurfaceFormat");
-    // else
-    //     Log.Info("A VkSurfaceFormat supporting preferred settings was found");
-
-    // VkPresentModeKHR preferredPresentMode = VK_PRESENT_MODE_MAILBOX_KHR;
-    // auto presentModeIterator = std::find_if(swapchainDetails.PresentModes.begin(), swapchainDetails.PresentModes.end(), [&preferredPresentMode](const VkPresentModeKHR& presentMode)
-    // {
-    //     return presentMode == preferredPresentMode;
-    // });
-
-    // if(presentModeIterator == swapchainDetails.PresentModes.end())
-    //     Log.Warn("Device doesn't support preferred VkPresentMode");
-    // else
-    //     Log.Info("Device supports preferred present mode");
-
-    // VkSurfaceFormatKHR surfaceFormat;
-    // VkPresentModeKHR presentMode;
-
-    VulkanSwapchain swapchain(device, renderingContext.GetSurface(), swapchainPreferences);
+    Log.Info("Creating ImageViews");
+    std::vector<std::shared_ptr<VulkanImageView>> imageViews;
+    for(auto swapImage : swapchainImages)
+    {
+        imageViews.emplace_back(std::make_shared<VulkanImageView>(swapchain, swapImage, device));
+    }
 
     Log.Info("Entering EventLoop");
     while(window.IsOpen())

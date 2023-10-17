@@ -1,5 +1,17 @@
 #include "VulkanDeviceRequirements.hpp"
 
+std::set<uint32_t> VulkanQueueRequest::GetFamilyIndices()
+{
+    std::set<uint32_t> indices;
+
+    for(const auto& loc : QueueLocations)
+    {
+        indices.insert(loc.FamilyIndex);
+    }
+    
+    return indices;
+}
+
 void VulkanDeviceRequirements::FillQueuePrioritiesIfNeeded()
 {
     // Maybe the device Requirements can do this part? 
