@@ -25,7 +25,7 @@ VulkanSwapchain::VulkanSwapchain(std::shared_ptr<VulkanDevice> device, VkSurface
     
     std::vector<uint32_t> familyIndices(preferences.QueueFamilyIndices.begin(), preferences.QueueFamilyIndices.end());
 
-    if(familyIndices.size() > 1)
+    if(preferences.SharingMode == VK_SHARING_MODE_CONCURRENT)
     {
         createInfo.imageSharingMode = VK_SHARING_MODE_CONCURRENT;
         createInfo.queueFamilyIndexCount = familyIndices.size();
@@ -165,6 +165,9 @@ VkExtent2D VulkanSwapchain::SelectExtent(const VkSurfaceKHR surface, const Vulka
     {
         return capabilities.currentExtent;
     }
+
+    if(preferences.WindowSizeInPixels.width == 0 || preferences.WindowSizeInPixels.height)
+        Log.Warn("VulkanSwapchainPreferences WindowSizeInPixels width and or height is 0");
 
     VkExtent2D extent = preferences.WindowSizeInPixels;
 
