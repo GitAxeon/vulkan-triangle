@@ -49,6 +49,7 @@ public:
     ~VulkanSwapchain();
     
     std::shared_ptr<VulkanDevice> GetDevice() const { return m_Device; }
+    VkSwapchainKHR GetHandle() const { return m_Swapchain; }
     VkSurfaceFormatKHR GetSurfaceFormat() const { return m_SurfaceFormat; }
     VkPresentModeKHR GetPresentMode() const { return m_PresentMode; }
     VkExtent2D GetExtent() const { return m_Extent; }

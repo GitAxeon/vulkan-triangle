@@ -1,5 +1,5 @@
 #include "VulkanDeviceRequirements.hpp"
-
+#include "../Debug/Log.hpp"
 std::set<uint32_t> VulkanQueueRequest::GetFamilyIndices()
 {
     std::set<uint32_t> indices;

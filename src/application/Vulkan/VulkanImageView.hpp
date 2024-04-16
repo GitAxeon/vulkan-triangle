@@ -12,6 +12,8 @@ public:
     VulkanImageView(std::shared_ptr<VulkanSwapchain> swapchain, VkImage swapchainImage, std::shared_ptr<VulkanDevice> device);
     ~VulkanImageView();
 
+    VkImageView GetHandle() const;
+
 private:
     VkImageView m_ImageView;
 

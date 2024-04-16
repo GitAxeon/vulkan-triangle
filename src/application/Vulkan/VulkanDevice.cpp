@@ -1,10 +1,10 @@
 #include "VulkanDevice.hpp"
 #include "VulkanInstance.hpp"
 
-VulkanDevice::VulkanDevice(std::shared_ptr<VulkanPhysicalDevice> physicalDevice, VulkanDeviceRequirements& requirements)
+VulkanDevice::VulkanDevice(std::shared_ptr<VulkanPhysicalDevice> physicalDevice, std::shared_ptr<VulkanDeviceRequirements> requirements)
     : m_Instance(physicalDevice->GetInstance()), m_PhysicalDevice(physicalDevice)
 {
-    auto familyCreateInfos = requirements.CombineQueueRequestIntoQueueFamilyCreateInfos();
+    auto familyCreateInfos = requirements->CombineQueueRequestIntoQueueFamilyCreateInfos();
     auto createInfos = GenerateCreateInfos(familyCreateInfos);
 
     // Using default values for now

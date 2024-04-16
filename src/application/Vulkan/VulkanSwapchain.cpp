@@ -24,8 +24,9 @@ VulkanSwapchain::VulkanSwapchain(std::shared_ptr<VulkanDevice> device, VkSurface
     createInfo.imageUsage = preferences.ImageUsage;
     
     std::vector<uint32_t> familyIndices(preferences.QueueFamilyIndices.begin(), preferences.QueueFamilyIndices.end());
-
-    if(preferences.SharingMode == VK_SHARING_MODE_CONCURRENT)
+    
+    // This check will cause bugs pls fix
+    if(preferences.SharingMode == VK_SHARING_MODE_CONCURRENT && familyIndices.size() > 1)
     {
         createInfo.imageSharingMode = VK_SHARING_MODE_CONCURRENT;
         createInfo.queueFamilyIndexCount = familyIndices.size();
@@ -111,7 +112,7 @@ VkSurfaceFormatKHR VulkanSwapchain::SelectSurfaceFormat(const VkSurfaceKHR surfa
 {
     VkSurfaceFormatKHR result;
 
-    auto formats = m_Device->GetSwapchainSupportDetails(surface).Formats;
+    std::vector<VkSurfaceFormatKHR> formats = m_Device->GetSwapchainSupportDetails(surface).Formats;
 
     if(formats.empty())
     {

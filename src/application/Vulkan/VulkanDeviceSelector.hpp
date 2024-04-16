@@ -17,7 +17,7 @@ public:
     VulkanDeviceSelector() = delete;
     VulkanDeviceSelector(const VulkanDeviceSelector&) = delete;
     
-    VulkanDeviceSelector(std::shared_ptr<VulkanInstance> vulkanInstance, VulkanDeviceRequirements& requirements);
+    VulkanDeviceSelector(std::shared_ptr<VulkanInstance> vulkanInstance, std::shared_ptr<VulkanDeviceRequirements> requirements);
 
     std::shared_ptr<VulkanDevice> GetDevice();
 
@@ -49,7 +49,7 @@ private:
 
 private:
     std::shared_ptr<VulkanInstance> m_Instance;
-    VulkanDeviceRequirements m_DeviceRequirements;
+    std::shared_ptr<VulkanDeviceRequirements> m_DeviceRequirements;
 
     std::shared_ptr<VulkanDevice> m_Device;
 };

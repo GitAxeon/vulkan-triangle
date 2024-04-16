@@ -1,10 +1,10 @@
 #include "VulkanDeviceSelector.hpp"
 #include "VulkanInstance.hpp"
 
-VulkanDeviceSelector::VulkanDeviceSelector(std::shared_ptr<VulkanInstance> vulkanInstance, VulkanDeviceRequirements& requirements)
+VulkanDeviceSelector::VulkanDeviceSelector(std::shared_ptr<VulkanInstance> vulkanInstance, std::shared_ptr<VulkanDeviceRequirements> requirements)
     : m_Instance(vulkanInstance), m_DeviceRequirements(requirements)
 {
-    m_DeviceRequirements.FillQueuePrioritiesIfNeeded();
+    m_DeviceRequirements->FillQueuePrioritiesIfNeeded();
 
     auto physicalDevices = vulkanInstance->GetPhysicalDevices();
 
@@ -107,11 +107,11 @@ std::vector<VulkanQueueFamilyInfo> VulkanDeviceSelector::FindSuitableFamilies(st
 
 bool VulkanDeviceSelector::DoesDeviceSupportExtensions(std::shared_ptr<VulkanPhysicalDevice>& physicalDevice)
 {
-    if(m_DeviceRequirements.Extensions.size() == 0)
+    if(m_DeviceRequirements->Extensions.size() == 0)
         return true;
 
     Log.Info("Checking whether the device supports required extensions");
-    std::set<std::string> required(m_DeviceRequirements.Extensions.begin(), m_DeviceRequirements.Extensions.end());
+    std::set<std::string> required(m_DeviceRequirements->Extensions.begin(), m_DeviceRequirements->Extensions.end());
 
     Log.Info("Requested extensions");
     for(auto ext : required)
@@ -143,12 +143,12 @@ bool VulkanDeviceSelector::DoesDeviceSupportExtensions(std::shared_ptr<VulkanPhy
 
 bool VulkanDeviceSelector::DoesDeviceSupportRequests(std::shared_ptr<VulkanPhysicalDevice>& physicalDevice)
 {
-    size_t requestCount = m_DeviceRequirements.Queues.size();
+    size_t requestCount = m_DeviceRequirements->Queues.size();
 
     // Each element represents the number of queues requested of that type which we will attempt to fulfill. ie. at the end it should all be zeros
     std::vector<int> unfulfilledRequestedQueueCount;
 
-    for(auto& request : m_DeviceRequirements.Queues)
+    for(auto& request : m_DeviceRequirements->Queues)
     {
         unfulfilledRequestedQueueCount.push_back(request.Count);
     }
@@ -165,7 +165,7 @@ bool VulkanDeviceSelector::DoesDeviceSupportRequests(std::shared_ptr<VulkanPhysi
     // Attempt to fullfil each queue request by assigning queues from the physical device to match the requests
     for(size_t i = 0; i < requestCount; i++)
     {
-        VulkanQueueRequest& request = m_DeviceRequirements.Queues[i];
+        VulkanQueueRequest& request = m_DeviceRequirements->Queues[i];
 
         if(request.Surface.has_value())
         {
