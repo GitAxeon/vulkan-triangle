@@ -1,5 +1,7 @@
 #pragma once
 
+#include "VulkanSwapchainImage.hpp"
+
 #include <Vulkan/vulkan.hpp>
 
 #include <functional>
@@ -55,14 +57,14 @@ public:
     VkExtent2D GetExtent() const { return m_Extent; }
     uint32_t GetImageCount() const { return m_ImageCount; }
     uint32_t QueryImageCount() const;
-
-    std::vector<VkImage> GetSwapchainImages() const;
+    std::vector<std::shared_ptr<VulkanSwapchainImage>> GetSwapchainImages() const;
 
 private:
-    VkSurfaceFormatKHR SelectSurfaceFormat(const VkSurfaceKHR surface, const VkSurfaceFormatKHR& preference);
-    VkPresentModeKHR SelectPresentMode(const VkSurfaceKHR surface, const VkPresentModeKHR preference);
-    VkExtent2D SelectExtent(const VkSurfaceKHR surface, const VulkanSwapchainPreferences& preferences);
-    uint32_t FigureImageCount(const VkSurfaceKHR surface, const VulkanSwapchainPreferences& preferences);
+    VkSurfaceFormatKHR SelectSurfaceFormat(const VkSurfaceKHR surface, const VkSurfaceFormatKHR& preference) const;
+    VkPresentModeKHR SelectPresentMode(const VkSurfaceKHR surface, const VkPresentModeKHR preference) const;
+    VkExtent2D SelectExtent(const VkSurfaceKHR surface, const VulkanSwapchainPreferences& preferences) const;
+    uint32_t FigureImageCount(const VkSurfaceKHR surface, const VulkanSwapchainPreferences& preferences) const;
+    void FetchSwapchainImages();
 
 private:
     VkSwapchainKHR m_Swapchain;
@@ -72,4 +74,5 @@ private:
     uint32_t m_ImageCount;
 
     std::shared_ptr<VulkanDevice> m_Device;
+    std::vector<std::shared_ptr<VulkanSwapchainImage>> m_SwapchainImages;
 };  

@@ -9,6 +9,14 @@
 #include "application/Vulkan/VulkanImageView.hpp"
 #include "application/Vulkan/VulkanShaderModule.hpp"
 #include "application/Vulkan/VulkanPipelineLayout.hpp"
+#include "application/Vulkan/VulkanFence.hpp"
+#include "application/Vulkan/VulkanSemaphore.hpp"
+#include "application/Vulkan/VulkanRenderPass.hpp"
+#include "application/Vulkan/VulkanAttachmentDescription.hpp"
+#include "application/Vulkan/VulkanAttachmentReference.hpp"
+#include "application/Vulkan/VulkanSubpassDependency.hpp"
+#include "application/Vulkan/VulkanSubpassDescription.hpp"
+#include "application/Vulkan/VulkanRect2D.hpp"
 
 #include "application/RenderingContext.hpp"
 
@@ -58,7 +66,7 @@ int main(int argc, char* argv[])
         
         return (EXIT_FAILURE);
     }
-        
+    Log.Info("End of main");
     return (EXIT_SUCCESS);
 }
 
@@ -200,55 +208,57 @@ void RunApplication()
 
     std::shared_ptr<VulkanSwapchain> swapchain = std::make_shared<VulkanSwapchain>(device, renderingContext.GetSurface(), swapchainPreferences);
 
-    std::vector<VkImage> swapchainImages = swapchain->GetSwapchainImages();
+    std::vector<std::shared_ptr<VulkanSwapchainImage>> swapchainImages = swapchain->GetSwapchainImages();
     
     Log.Info("Swapchain image count: ", swapchainImages.size());
 
     Log.Info("Creating ImageViews");
+
     std::vector<std::shared_ptr<VulkanImageView>> imageViews;
-    for(VkImage swapImage : swapchainImages)
+    for(std::shared_ptr<VulkanSwapchainImage> swapImage : swapchainImages)
     {
-        imageViews.emplace_back(std::make_shared<VulkanImageView>(swapchain, swapImage, device));
+        imageViews.emplace_back(std::make_shared<VulkanImageView>(swapchain, swapImage->GetHandle(), device));
     }
 
-    VkAttachmentDescription colorAttachment {};
-    colorAttachment.format = swapchain->GetSurfaceFormat().format;
-    colorAttachment.samples = VK_SAMPLE_COUNT_1_BIT;
-    colorAttachment.loadOp = VK_ATTACHMENT_LOAD_OP_CLEAR;
-    colorAttachment.storeOp = VK_ATTACHMENT_STORE_OP_STORE;
-    colorAttachment.stencilLoadOp = VK_ATTACHMENT_LOAD_OP_DONT_CARE;
-    colorAttachment.stencilStoreOp = VK_ATTACHMENT_STORE_OP_DONT_CARE;
-    colorAttachment.initialLayout = VK_IMAGE_LAYOUT_UNDEFINED;
-    colorAttachment.finalLayout = VK_IMAGE_LAYOUT_PRESENT_SRC_KHR;
+    VulkanAttachmentDescription colorAttachment(
+        swapchain->GetSurfaceFormat().format,
+        VK_SAMPLE_COUNT_1_BIT,
+        VK_ATTACHMENT_LOAD_OP_CLEAR,
+        VK_ATTACHMENT_STORE_OP_STORE,
+        VK_ATTACHMENT_LOAD_OP_DONT_CARE,
+        VK_ATTACHMENT_STORE_OP_DONT_CARE,
+        VK_IMAGE_LAYOUT_UNDEFINED,
+        VK_IMAGE_LAYOUT_PRESENT_SRC_KHR
+    );
 
-    VkAttachmentReference colorAttachmentRef {};
-    colorAttachmentRef.attachment = 0;
-    colorAttachmentRef.layout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL;
+    std::shared_ptr<VulkanAttachmentReference> colorAttachmentReference = std::make_shared<VulkanAttachmentReference>(0, VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL);
+    
+    VulkanSubpassDescription subpass(
+        colorAttachmentReference
+    );
 
-    VkSubpassDescription subpass {};
-    subpass.pipelineBindPoint = VK_PIPELINE_BIND_POINT_GRAPHICS;
-    subpass.colorAttachmentCount = 1;
-    subpass.pColorAttachments = &colorAttachmentRef;
+    VulkanSubpassDependency subpassDepency(
+        VK_SUBPASS_EXTERNAL,
+        0,
+        VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT,
+        VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT,
+        0,
+        VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT,
+        0
+    );
 
-    VkSubpassDependency dependency {};
-    dependency.srcSubpass = VK_SUBPASS_EXTERNAL;
-    dependency.dstSubpass = 0;
-    dependency.srcStageMask = VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT;
-    dependency.srcAccessMask = 0;
-    dependency.dstStageMask = VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT;
-    dependency.dstAccessMask = VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT;
-
-    VkRenderPass renderPass;
+    VulkanRenderPass newRenderPass(device);
 
     VkRenderPassCreateInfo renderPassInfo {};
     renderPassInfo.sType = VK_STRUCTURE_TYPE_RENDER_PASS_CREATE_INFO;
     renderPassInfo.attachmentCount = 1;
-    renderPassInfo.pAttachments = &colorAttachment;
+    renderPassInfo.pAttachments = colorAttachment;
     renderPassInfo.subpassCount = 1;
-    renderPassInfo.pSubpasses = &subpass;
+    renderPassInfo.pSubpasses = subpass;
     renderPassInfo.dependencyCount = 1;
-    renderPassInfo.pDependencies = &dependency;
+    renderPassInfo.pDependencies = subpassDepency;
 
+    VkRenderPass renderPass;
     VkResult createRenderPassResult = vkCreateRenderPass(device->GetHandle(), &renderPassInfo, nullptr, &renderPass);
 
     if(createRenderPassResult != VK_SUCCESS)
@@ -301,6 +311,7 @@ void RunApplication()
     inputAssembly.primitiveRestartEnable = VK_FALSE;
     
     VkExtent2D extent = swapchain->GetExtent();
+
     VkViewport viewport {};
     viewport.x = 0.0f;
     viewport.y = 0.0f;
@@ -309,16 +320,14 @@ void RunApplication()
     viewport.minDepth = 0.0f;
     viewport.maxDepth = 1.0f;
 
-    VkRect2D scissor {};
-    scissor.offset = {0 , 0};
-    scissor.extent = extent;
+    VulkanRect2D scissor(extent);
 
     VkPipelineViewportStateCreateInfo viewportState {};
     viewportState.sType = VK_STRUCTURE_TYPE_PIPELINE_VIEWPORT_STATE_CREATE_INFO;
     viewportState.viewportCount = 1;
     viewportState.pViewports = &viewport;
     viewportState.scissorCount = 1;
-    viewportState.pScissors = &scissor;
+    viewportState.pScissors = scissor;
 
     VkPipelineRasterizationStateCreateInfo rasterizer {};
     rasterizer.sType = VK_STRUCTURE_TYPE_PIPELINE_RASTERIZATION_STATE_CREATE_INFO;
@@ -457,41 +466,10 @@ void RunApplication()
         throw std::runtime_error("Vulkan error");
     }
 
-    VkSemaphore imageAvailableSemaphore;
-    VkSemaphore renderFinishedSemaphore;
-    VkFence inFlightFence;
+    VulkanSemaphore imageAvailableSem(device);
+    VulkanSemaphore renderFinishedSem(device);
 
-    VkSemaphoreCreateInfo semaphoreCreateInfo {};
-    semaphoreCreateInfo.sType = VK_STRUCTURE_TYPE_SEMAPHORE_CREATE_INFO;
-
-    VkResult result = vkCreateSemaphore(device->GetHandle(), &semaphoreCreateInfo, nullptr, &imageAvailableSemaphore);
-
-    if(result != VK_SUCCESS)
-    {
-        Log.Error("Failed to create semaphore");
-        throw std::runtime_error("Vulkan error");
-    }
-
-    result = vkCreateSemaphore(device->GetHandle(), &semaphoreCreateInfo, nullptr, &renderFinishedSemaphore);
-
-    if(result != VK_SUCCESS)
-    {
-        Log.Error("Failed to create semaphore");
-        throw std::runtime_error("Vulkan error");
-    }
-
-    VkFenceCreateInfo fenceCreateInfo {};
-    fenceCreateInfo.sType = VK_STRUCTURE_TYPE_FENCE_CREATE_INFO;
-    fenceCreateInfo.flags = VK_FENCE_CREATE_SIGNALED_BIT;
-
-    result = vkCreateFence(device->GetHandle(), &fenceCreateInfo, nullptr, &inFlightFence);
-
-    if(result != VK_SUCCESS)
-    {
-        Log.Error("Failed to create fence");
-        throw std::runtime_error("Vulkan error");
-    }
-
+    VulkanFence inFlightFence(device, VK_FENCE_CREATE_SIGNALED_BIT);
 
     Log.Info("Entering EventLoop");
     while(window.IsOpen())
@@ -512,18 +490,18 @@ void RunApplication()
             }
         }
         // Rendering thingies?
-
-        vkWaitForFences(device->GetHandle(), 1, &inFlightFence, VK_TRUE, UINT64_MAX);
-        vkResetFences(device->GetHandle(), 1, &inFlightFence);
+        
+        inFlightFence.Wait();
+        inFlightFence.Reset();
 
         uint32_t imageIndex;
-        vkAcquireNextImageKHR(device->GetHandle(), swapchain->GetHandle(),UINT64_MAX, imageAvailableSemaphore, VK_NULL_HANDLE, &imageIndex);
+        vkAcquireNextImageKHR(device->GetHandle(), swapchain->GetHandle(), UINT64_MAX, imageAvailableSem.GetHandle(), VK_NULL_HANDLE, &imageIndex);
 
         vkResetCommandBuffer(commandBuffer, 0);
 
         RecordCommandBuffer(commandBuffer, renderPass, swapChainFramebuffers[imageIndex], extent, graphicsPipeline);
 
-        VkSemaphore waitSemaphores[] = {imageAvailableSemaphore};
+        VkSemaphore waitSemaphores[] = {imageAvailableSem.GetHandle()};
         VkPipelineStageFlags waitStages[] = {VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT};
 
         VkSubmitInfo submitInfo {};
@@ -534,11 +512,11 @@ void RunApplication()
         submitInfo.commandBufferCount = 1;
         submitInfo.pCommandBuffers = &commandBuffer;
 
-        VkSemaphore signalSemaphores[] = {renderFinishedSemaphore};
+        VkSemaphore signalSemaphores[] = {renderFinishedSem.GetHandle()};
         submitInfo.signalSemaphoreCount = 1;
         submitInfo.pSignalSemaphores = signalSemaphores;
 
-        VkResult submitResult = vkQueueSubmit(graphicsQueue, 1, &submitInfo, inFlightFence);
+        VkResult submitResult = vkQueueSubmit(graphicsQueue, 1, &submitInfo, inFlightFence.GetHandle());
 
         if(submitResult != VK_SUCCESS)
         {
@@ -570,10 +548,6 @@ void RunApplication()
     }
 
     vkDestroyCommandPool(device->GetHandle(), commandPool, nullptr);
-
-    vkDestroySemaphore(device->GetHandle(), imageAvailableSemaphore, nullptr);
-    vkDestroySemaphore(device->GetHandle(), renderFinishedSemaphore, nullptr);
-    vkDestroyFence(device->GetHandle(), inFlightFence, nullptr);
 
     Log.Info("Exiting EventLoop");
 }
