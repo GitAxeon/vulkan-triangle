@@ -17,6 +17,8 @@
 #include "application/Vulkan/VulkanSubpassDependency.hpp"
 #include "application/Vulkan/VulkanSubpassDescription.hpp"
 #include "application/Vulkan/VulkanRect2D.hpp"
+#include "application/Vulkan/VulkanCommandPool.hpp"
+#include "application/Vulkan/VulkanCommandBuffer.hpp"
 
 #include "application/RenderingContext.hpp"
 
@@ -60,12 +62,17 @@ int main(int argc, char* argv[])
     {
         RunApplication();
     }
-    catch(const std::exception& exception)
+    catch(std::exception& exception)
     {
         Log.Error(exception.what());
         
         return (EXIT_FAILURE);
     }
+    catch(...)
+    {
+        Log.Error("Unknown critical error");
+    }
+
     Log.Info("End of main");
     return (EXIT_SUCCESS);
 }
@@ -132,10 +139,8 @@ void RecordCommandBuffer(VkCommandBuffer commandBuffer, VkRenderPass renderPass,
 
     vkCmdSetViewport(commandBuffer, 0, 1, &viewport);
 
-    VkRect2D scissor {};
-    scissor.offset = {0, 0};
-    scissor.extent = extent;
-    vkCmdSetScissor(commandBuffer, 0, 1, &scissor);
+    VulkanRect2D scissor(extent);
+    vkCmdSetScissor(commandBuffer, 0, 1, scissor);
 
     vkCmdDraw(commandBuffer, 3, 1, 0, 0);
 
@@ -309,7 +314,7 @@ void RunApplication()
     inputAssembly.sType = VK_STRUCTURE_TYPE_PIPELINE_INPUT_ASSEMBLY_STATE_CREATE_INFO;
     inputAssembly.topology = VK_PRIMITIVE_TOPOLOGY_TRIANGLE_LIST;
     inputAssembly.primitiveRestartEnable = VK_FALSE;
-    
+
     VkExtent2D extent = swapchain->GetExtent();
 
     VkViewport viewport {};
@@ -435,37 +440,16 @@ void RunApplication()
         }
     }
 
-    VkCommandPool commandPool;
-    
-    VkCommandPoolCreateInfo poolInfo {};
-    poolInfo.sType = VK_STRUCTURE_TYPE_COMMAND_POOL_CREATE_INFO;
-    poolInfo.flags = VK_COMMAND_POOL_CREATE_RESET_COMMAND_BUFFER_BIT;
-    poolInfo.queueFamilyIndex = *requirements->Queues[0].GetFamilyIndices().begin();
+    std::shared_ptr<VulkanCommandPool> commandPool = std::make_shared<VulkanCommandPool>
+    (
+        device,
+        *requirements->Queues[0].GetFamilyIndices().begin(),
+        VK_COMMAND_POOL_CREATE_RESET_COMMAND_BUFFER_BIT
+    );
 
-    VkResult createCommandPoolResult = vkCreateCommandPool(device->GetHandle(), &poolInfo, nullptr, &commandPool);
+    std::shared_ptr<VulkanCommandBuffer> commandBuffer = commandPool->CreatePrimaryBuffer();
 
-    if(createCommandPoolResult != VK_SUCCESS)
-    {
-        Log.Error("Failed to create commandpool");
-        throw std::runtime_error("Vulkan error");
-    }
-
-    VkCommandBuffer commandBuffer;
-    
-    VkCommandBufferAllocateInfo allocInfo {};
-    allocInfo.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_ALLOCATE_INFO;
-    allocInfo.commandPool = commandPool;
-    allocInfo.level = VK_COMMAND_BUFFER_LEVEL_PRIMARY;
-    allocInfo.commandBufferCount = 1;
-
-    VkResult commandBufferCreateResult = vkAllocateCommandBuffers(device->GetHandle(), &allocInfo, &commandBuffer);
-
-    if(commandBufferCreateResult != VK_SUCCESS)
-    {
-        Log.Error("Failed to create commandbuffer");
-        throw std::runtime_error("Vulkan error");
-    }
-
+    // Synchronization
     VulkanSemaphore imageAvailableSem(device);
     VulkanSemaphore renderFinishedSem(device);
 
@@ -497,9 +481,9 @@ void RunApplication()
         uint32_t imageIndex;
         vkAcquireNextImageKHR(device->GetHandle(), swapchain->GetHandle(), UINT64_MAX, imageAvailableSem.GetHandle(), VK_NULL_HANDLE, &imageIndex);
 
-        vkResetCommandBuffer(commandBuffer, 0);
+        commandBuffer->Reset();
 
-        RecordCommandBuffer(commandBuffer, renderPass, swapChainFramebuffers[imageIndex], extent, graphicsPipeline);
+        RecordCommandBuffer(commandBuffer->GetHandle(), renderPass, swapChainFramebuffers[imageIndex], extent, graphicsPipeline);
 
         VkSemaphore waitSemaphores[] = {imageAvailableSem.GetHandle()};
         VkPipelineStageFlags waitStages[] = {VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT};
@@ -510,7 +494,7 @@ void RunApplication()
         submitInfo.pWaitSemaphores = waitSemaphores;
         submitInfo.pWaitDstStageMask = waitStages;
         submitInfo.commandBufferCount = 1;
-        submitInfo.pCommandBuffers = &commandBuffer;
+        submitInfo.pCommandBuffers = &commandBuffer->GetHandleAddress();
 
         VkSemaphore signalSemaphores[] = {renderFinishedSem.GetHandle()};
         submitInfo.signalSemaphoreCount = 1;
@@ -542,12 +526,12 @@ void RunApplication()
 
     vkDestroyPipeline(device->GetHandle(), graphicsPipeline, nullptr);
 
+    commandPool->DestroyCommandBuffer(commandBuffer);
+
     for(auto framebuffer : swapChainFramebuffers)
     {
         vkDestroyFramebuffer(device->GetHandle(), framebuffer, nullptr);
     }
-
-    vkDestroyCommandPool(device->GetHandle(), commandPool, nullptr);
 
     Log.Info("Exiting EventLoop");
 }
