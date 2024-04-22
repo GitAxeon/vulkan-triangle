@@ -19,12 +19,15 @@ public:
     VulkanDevice(const VulkanDevice&) = delete;
     
     VulkanDevice(std::shared_ptr<VulkanPhysicalDevice> physicalDevice, std::shared_ptr<VulkanDeviceRequirements> requirements);
-    const SwapchainSupportDetails GetSwapchainSupportDetails(VkSurfaceKHR surface);
-    VkDevice GetHandle() { return m_Device; }
-
     ~VulkanDevice();
-
+    
+    VkDevice GetHandle() { return m_Device; }
+    
+    const SwapchainSupportDetails GetSwapchainSupportDetails(VkSurfaceKHR surface);
+    
     VkQueue GetQueue(const VulkanQueueRequest& request, int queueIndex);
+
+    bool WaitIdle() const;
 
 private:
     std::vector<VkDeviceQueueCreateInfo> GenerateCreateInfos(std::map<uint32_t, QueueFamilyCreateInfo>& familyInfos);

@@ -1,20 +1,17 @@
 #include "VulkanImageView.hpp"
-#include "VulkanDevice.hpp"
+
 #include "VulkanSwapchain.hpp"
+#include "VulkanImage.hpp"
 
-VulkanImageView::VulkanImageView()
-    : m_ImageView(VK_NULL_HANDLE), m_Swapchain(VK_NULL_HANDLE), m_Device(nullptr)
-{}
-
-VulkanImageView::VulkanImageView(std::shared_ptr<VulkanSwapchain> swapchain, VkImage swapchainImage, std::shared_ptr<VulkanDevice> device)
-    : m_ImageView(VK_NULL_HANDLE), m_Swapchain(swapchain), m_Device(device)
+VulkanImageView::VulkanImageView(std::shared_ptr<VulkanImage> image, VkComponentMapping mapping)
+    : m_ImageView(VK_NULL_HANDLE), m_Image(image)
 {
     VkImageViewCreateInfo createInfo{};
     createInfo.sType = VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO;
-    createInfo.image = swapchainImage;
+    createInfo.image = image->GetHandle();
     
     createInfo.viewType = VK_IMAGE_VIEW_TYPE_2D;
-    createInfo.format = swapchain->GetSurfaceFormat().format;
+    createInfo.format = image->GetFormat();
 
     createInfo.components.r = VK_COMPONENT_SWIZZLE_IDENTITY;
     createInfo.components.g = VK_COMPONENT_SWIZZLE_IDENTITY;
@@ -27,7 +24,7 @@ VulkanImageView::VulkanImageView(std::shared_ptr<VulkanSwapchain> swapchain, VkI
     createInfo.subresourceRange.baseArrayLayer = 0;
     createInfo.subresourceRange.layerCount = 1;
 
-    VkResult createResult = vkCreateImageView(m_Device->GetHandle(), &createInfo, nullptr, &m_ImageView);
+    VkResult createResult = vkCreateImageView(m_Image->GetDevice()->GetHandle(), &createInfo, nullptr, &m_ImageView);
 
     if(createResult != VK_SUCCESS)
     {
@@ -43,11 +40,16 @@ VulkanImageView::~VulkanImageView()
     if(m_ImageView != VK_NULL_HANDLE)
     {
         Log.Info("VulkanImageView destroyed");
-        vkDestroyImageView(m_Device->GetHandle(), m_ImageView, nullptr);
+        vkDestroyImageView(m_Image->GetDevice()->GetHandle(), m_ImageView, nullptr);
     }
 }
 
 VkImageView VulkanImageView::GetHandle() const
 {
     return m_ImageView;
+}
+
+VkExtent2D VulkanImageView::GetExtent() const
+{
+    return m_Image->GetExtent();
 }

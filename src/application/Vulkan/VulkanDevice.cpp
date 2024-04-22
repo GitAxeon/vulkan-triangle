@@ -118,3 +118,9 @@ std::vector<VkDeviceQueueCreateInfo> VulkanDevice::GenerateCreateInfos(std::map<
 
     return result;
 }
+
+bool VulkanDevice::WaitIdle() const
+{
+    VkResult result = vkDeviceWaitIdle(m_Device);
+    return result == VK_SUCCESS;
+}

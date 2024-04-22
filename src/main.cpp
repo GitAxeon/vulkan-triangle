@@ -19,6 +19,8 @@
 #include "application/Vulkan/VulkanRect2D.hpp"
 #include "application/Vulkan/VulkanCommandPool.hpp"
 #include "application/Vulkan/VulkanCommandBuffer.hpp"
+#include "application/Vulkan/VulkanViewport.hpp"
+#include "application/Vulkan/VulkanPipeline.hpp"
 
 #include "application/RenderingContext.hpp"
 
@@ -101,58 +103,84 @@ static VKAPI_ATTR VkBool32 VKAPI_CALL DebugCallback(
     return VK_FALSE;
 }
 
-void RecordCommandBuffer(VkCommandBuffer commandBuffer, VkRenderPass renderPass, VkFramebuffer frameBuffer, VkExtent2D extent, VkPipeline pipeline)
+void RecordCommandBuffer
+(
+    std::shared_ptr<VulkanCommandBuffer> commandBuffer,
+    std::shared_ptr<VulkanRenderPass> renderPass,
+    std::shared_ptr<VulkanFramebuffer> frameBuffer,
+    VkExtent2D extent,
+    std::shared_ptr<VulkanPipeline> pipeline
+)
 {
-    VkCommandBufferBeginInfo beginInfo {};
-    beginInfo.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO;
-    beginInfo.flags = 0; // Optional
-    beginInfo.pInheritanceInfo = nullptr; // Optional
+    // VkCommandBufferBeginInfo beginInfo {};
+    // beginInfo.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO;
+    // beginInfo.flags = 0; // Optional
+    // beginInfo.pInheritanceInfo = nullptr; // Optional
 
-    VkResult commandBeginInfoResult = vkBeginCommandBuffer(commandBuffer, &beginInfo);
-    if(commandBeginInfoResult != VK_SUCCESS)
-    {
-        Log.Error("Failed to begin recording command buffer");
-        throw std::runtime_error("Vulkan error");
-    }
+    // VkResult commandBeginInfoResult = vkBeginCommandBuffer(commandBuffer->GetHandle(), &beginInfo);
+    // if(commandBeginInfoResult != VK_SUCCESS)
+    // {
+    //     Log.Error("Failed to begin recording command buffer");
+    //     throw std::runtime_error("Vulkan error");
+    // }
 
-    VkRenderPassBeginInfo renderPassBeginInfo {};
-    renderPassBeginInfo.sType = VK_STRUCTURE_TYPE_RENDER_PASS_BEGIN_INFO;
-    renderPassBeginInfo.renderPass = renderPass;
-    renderPassBeginInfo.framebuffer = frameBuffer;
-    renderPassBeginInfo.renderArea.offset = {0, 0};
-    renderPassBeginInfo.renderArea.extent = extent;
-
+    commandBuffer->Begin();
+    
     VkClearValue clearColor = {{{0.0f, 0.0f, 0.0f, 1.0f}}};
-    renderPassBeginInfo.clearValueCount = 1;
-    renderPassBeginInfo.pClearValues = &clearColor;
+    commandBuffer->BeginRenderPass(
+        renderPass,
+        frameBuffer,
+        VulkanRect2D(0, 0, extent.width, extent.height),
+        clearColor,
+        VK_SUBPASS_CONTENTS_INLINE
+     );
 
-    vkCmdBeginRenderPass(commandBuffer, &renderPassBeginInfo, VK_SUBPASS_CONTENTS_INLINE);
-    vkCmdBindPipeline(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, pipeline);
+    // VkRenderPassBeginInfo renderPassBeginInfo {};
+    // renderPassBeginInfo.sType = VK_STRUCTURE_TYPE_RENDER_PASS_BEGIN_INFO;
+    // renderPassBeginInfo.renderPass = renderPass->GetHandle();
+    // renderPassBeginInfo.framebuffer = frameBuffer->GetHandle();
+    // renderPassBeginInfo.renderArea.offset = {0, 0};
+    // renderPassBeginInfo.renderArea.extent = extent;
 
-    VkViewport viewport {};
-    viewport.x = 0.0f;
-    viewport.y = 0.0f;
-    viewport.width = static_cast<float>(extent.width);
-    viewport.height = static_cast<float>(extent.height);
-    viewport.minDepth = 0.0f;
-    viewport.maxDepth = 1.0f;
+    // renderPassBeginInfo.clearValueCount = 1;
+    // renderPassBeginInfo.pClearValues = &clearColor;
 
-    vkCmdSetViewport(commandBuffer, 0, 1, &viewport);
+    // vkCmdBeginRenderPass(commandBuffer, &renderPassBeginInfo, VK_SUBPASS_CONTENTS_INLINE);
+    // vkCmdBindPipeline(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, pipeline);
+    commandBuffer->BindPipeline(pipeline, VK_PIPELINE_BIND_POINT_GRAPHICS);
+    
+
+    // VkViewport viewport {};
+    // viewport.x = 0.0f;
+    // viewport.y = 0.0f;
+    // viewport.width = static_cast<float>(extent.width);
+    // viewport.height = static_cast<float>(extent.height);
+    // viewport.minDepth = 0.0f;
+    // viewport.maxDepth = 1.0f;
+
+    VulkanViewport viewport(0, 0, static_cast<float>(extent.width), static_cast<float>(extent.height), 0.0f, 1.0f);
+    commandBuffer->SetViewport(viewport);
+    
+    // vkCmdSetViewport(commandBuffer, 0, 1, &viewport);
 
     VulkanRect2D scissor(extent);
-    vkCmdSetScissor(commandBuffer, 0, 1, scissor);
+    commandBuffer->SetScissor(scissor);
 
-    vkCmdDraw(commandBuffer, 3, 1, 0, 0);
+    // vkCmdSetScissor(commandBuffer, 0, 1, scissor);
+    commandBuffer->Draw(3, 0);
+    // vkCmdDraw(commandBuffer->GetHandle(), 3, 1, 0, 0);
 
-    vkCmdEndRenderPass(commandBuffer);
+    // vkCmdEndRenderPass(commandBuffer);
+    commandBuffer->EndRenderPass();
+    commandBuffer->End();
 
-    VkResult endCommandBufferResult =  vkEndCommandBuffer(commandBuffer);
+    // VkResult endCommandBufferResult =  vkEndCommandBuffer(commandBuffer);
 
-    if(endCommandBufferResult != VK_SUCCESS)
-    {
-        Log.Error("Failed to record command buffer end");
-        throw std::runtime_error("Vulkan error");
-    }
+    // if(endCommandBufferResult != VK_SUCCESS)
+    // {
+    //     Log.Error("Failed to record command buffer end");
+    //     throw std::runtime_error("Vulkan error");
+    // }
 }
 
 void RunApplication()
@@ -217,12 +245,10 @@ void RunApplication()
     
     Log.Info("Swapchain image count: ", swapchainImages.size());
 
-    Log.Info("Creating ImageViews");
-
     std::vector<std::shared_ptr<VulkanImageView>> imageViews;
     for(std::shared_ptr<VulkanSwapchainImage> swapImage : swapchainImages)
     {
-        imageViews.emplace_back(std::make_shared<VulkanImageView>(swapchain, swapImage->GetHandle(), device));
+        imageViews.emplace_back(std::make_shared<VulkanImageView>(swapImage));
     }
 
     VulkanAttachmentDescription colorAttachment(
@@ -242,7 +268,7 @@ void RunApplication()
         colorAttachmentReference
     );
 
-    VulkanSubpassDependency subpassDepency(
+    VulkanSubpassDependency subpassDependency(
         VK_SUBPASS_EXTERNAL,
         0,
         VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT,
@@ -252,25 +278,25 @@ void RunApplication()
         0
     );
 
-    VulkanRenderPass newRenderPass(device);
+    std::shared_ptr<VulkanRenderPass> renderPass = std::make_shared<VulkanRenderPass>(device, colorAttachment, subpass, subpassDependency);
 
-    VkRenderPassCreateInfo renderPassInfo {};
-    renderPassInfo.sType = VK_STRUCTURE_TYPE_RENDER_PASS_CREATE_INFO;
-    renderPassInfo.attachmentCount = 1;
-    renderPassInfo.pAttachments = colorAttachment;
-    renderPassInfo.subpassCount = 1;
-    renderPassInfo.pSubpasses = subpass;
-    renderPassInfo.dependencyCount = 1;
-    renderPassInfo.pDependencies = subpassDepency;
+    // VkRenderPassCreateInfo renderPassInfo {};
+    // renderPassInfo.sType = VK_STRUCTURE_TYPE_RENDER_PASS_CREATE_INFO;
+    // renderPassInfo.attachmentCount = 1;
+    // renderPassInfo.pAttachments = colorAttachment;
+    // renderPassInfo.subpassCount = 1;
+    // renderPassInfo.pSubpasses = subpass;
+    // renderPassInfo.dependencyCount = 1;
+    // renderPassInfo.pDependencies = subpassDependency;
 
-    VkRenderPass renderPass;
-    VkResult createRenderPassResult = vkCreateRenderPass(device->GetHandle(), &renderPassInfo, nullptr, &renderPass);
+    // VkRenderPass renderPass;
+    // VkResult createRenderPassResult = vkCreateRenderPass(device->GetHandle(), &renderPassInfo, nullptr, &renderPass);
 
-    if(createRenderPassResult != VK_SUCCESS)
-    {
-        Log.Error("Failed to create render pass");
-        throw std::runtime_error("Vulkan error");
-    }
+    // if(createRenderPassResult != VK_SUCCESS)
+    // {
+    //     Log.Error("Failed to create render pass");
+    //     throw std::runtime_error("Vulkan error");
+    // }
 
     // Load shaders
     std::vector<char> vertexShaderCode = ReadFile("shaders/vert.spv");
@@ -317,20 +343,14 @@ void RunApplication()
 
     VkExtent2D extent = swapchain->GetExtent();
 
-    VkViewport viewport {};
-    viewport.x = 0.0f;
-    viewport.y = 0.0f;
-    viewport.width = extent.width;
-    viewport.height = extent.height;
-    viewport.minDepth = 0.0f;
-    viewport.maxDepth = 1.0f;
+    VulkanViewport viewport(0, 0, extent.width, extent.height, 0, 1.0f);
 
     VulkanRect2D scissor(extent);
 
     VkPipelineViewportStateCreateInfo viewportState {};
     viewportState.sType = VK_STRUCTURE_TYPE_PIPELINE_VIEWPORT_STATE_CREATE_INFO;
     viewportState.viewportCount = 1;
-    viewportState.pViewports = &viewport;
+    viewportState.pViewports = viewport;
     viewportState.scissorCount = 1;
     viewportState.pScissors = scissor;
 
@@ -399,10 +419,12 @@ void RunApplication()
     pipelineInfo.pColorBlendState = &colorBlending;
     pipelineInfo.pDynamicState = &dynamicState;
     pipelineInfo.layout = pipelineLayout.GetHandle();
-    pipelineInfo.renderPass = renderPass;
+    pipelineInfo.renderPass = renderPass->GetHandle();
     pipelineInfo.subpass = 0;
     pipelineInfo.basePipelineHandle = VK_NULL_HANDLE; // These are optional
     pipelineInfo.basePipelineIndex = -1; // These are optional
+    
+    std::shared_ptr<VulkanPipeline> pipeline = std::make_shared<VulkanPipeline>();
 
     VkPipeline graphicsPipeline;
     VkResult createPipelineResult = vkCreateGraphicsPipelines(device->GetHandle(), VK_NULL_HANDLE, 1, &pipelineInfo, nullptr, &graphicsPipeline);
@@ -413,32 +435,38 @@ void RunApplication()
         throw std::runtime_error("Vulkan error");
     }
 
-    std::vector<VkFramebuffer> swapChainFramebuffers;
-    swapChainFramebuffers.resize(imageViews.size());
-
-    for(size_t i = 0; i < imageViews.size(); i++)
+    std::vector<std::shared_ptr<VulkanFramebuffer>> framebuffers;
+    for(auto view : imageViews)
     {
-        VkImageView attachments[] = {
-            imageViews[i]->GetHandle()
-        };
-
-        VkFramebufferCreateInfo framebufferInfo {};
-        framebufferInfo.sType = VK_STRUCTURE_TYPE_FRAMEBUFFER_CREATE_INFO;
-        framebufferInfo.renderPass = renderPass;
-        framebufferInfo.attachmentCount = 1;
-        framebufferInfo.pAttachments = attachments;
-        framebufferInfo.width = extent.width;
-        framebufferInfo.height = extent.height;
-        framebufferInfo.layers = 1;
-
-        VkResult createFramebufferResult = vkCreateFramebuffer(device->GetHandle(), &framebufferInfo, nullptr, &swapChainFramebuffers[i]);
-        
-        if(createFramebufferResult != VK_SUCCESS)
-        {
-            Log.Error("Failed to create framebuffer");
-            throw std::runtime_error("Vulkan error");
-        }
+        framebuffers.emplace_back(std::make_shared<VulkanFramebuffer>(renderPass, view));
     }
+
+    // std::vector<VkFramebuffer> swapChainFramebuffers;
+    // swapChainFramebuffers.resize(imageViews.size());
+
+    // for(size_t i = 0; i < imageViews.size(); i++)
+    // {
+    //     VkImageView attachments[] = {
+    //         imageViews[i]->GetHandle()
+    //     };
+
+    //     VkFramebufferCreateInfo framebufferInfo {};
+    //     framebufferInfo.sType = VK_STRUCTURE_TYPE_FRAMEBUFFER_CREATE_INFO;
+    //     framebufferInfo.renderPass = renderPass->GetHandle();
+    //     framebufferInfo.attachmentCount = 1;
+    //     framebufferInfo.pAttachments = attachments;
+    //     framebufferInfo.width = extent.width;
+    //     framebufferInfo.height = extent.height;
+    //     framebufferInfo.layers = 1;
+
+    //     VkResult createFramebufferResult = vkCreateFramebuffer(device->GetHandle(), &framebufferInfo, nullptr, &swapChainFramebuffers[i]);
+        
+    //     if(createFramebufferResult != VK_SUCCESS)
+    //     {
+    //         Log.Error("Failed to create framebuffer");
+    //         throw std::runtime_error("Vulkan error");
+    //     }
+    // }
 
     std::shared_ptr<VulkanCommandPool> commandPool = std::make_shared<VulkanCommandPool>
     (
@@ -483,7 +511,7 @@ void RunApplication()
 
         commandBuffer->Reset();
 
-        RecordCommandBuffer(commandBuffer->GetHandle(), renderPass, swapChainFramebuffers[imageIndex], extent, graphicsPipeline);
+        RecordCommandBuffer(commandBuffer, renderPass, framebuffers[imageIndex], extent, pipeline);
 
         VkSemaphore waitSemaphores[] = {imageAvailableSem.GetHandle()};
         VkPipelineStageFlags waitStages[] = {VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT};
@@ -522,16 +550,11 @@ void RunApplication()
         vkQueuePresentKHR(graphicsQueue, &presentInfo);
     }
 
-    vkDeviceWaitIdle(device->GetHandle());
+    device->WaitIdle();
 
     vkDestroyPipeline(device->GetHandle(), graphicsPipeline, nullptr);
 
     commandPool->DestroyCommandBuffer(commandBuffer);
-
-    for(auto framebuffer : swapChainFramebuffers)
-    {
-        vkDestroyFramebuffer(device->GetHandle(), framebuffer, nullptr);
-    }
 
     Log.Info("Exiting EventLoop");
 }

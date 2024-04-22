@@ -50,6 +50,7 @@ std::shared_ptr<VulkanCommandBuffer> VulkanCommandPool::CreatePrimaryBuffer()
     }
 
     Log.Info("Primary CommandBuffer created");
+    
     std::shared_ptr<VulkanCommandBuffer> commandBuffer = std::make_shared<VulkanCommandBuffer>(shared_from_this(), bufferHandle);
     
     return commandBuffer;   

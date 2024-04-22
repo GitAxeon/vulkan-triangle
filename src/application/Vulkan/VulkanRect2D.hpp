@@ -2,7 +2,7 @@
 
 #include <Vulkan/vulkan.hpp>
 
-class VulkanRect2D : VkRect2D
+class VulkanRect2D : public VkRect2D
 {
 public:
     constexpr VulkanRect2D()

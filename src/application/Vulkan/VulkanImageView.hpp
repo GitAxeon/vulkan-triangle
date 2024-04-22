@@ -1,22 +1,28 @@
 #pragma once
 
-#include <Vulkan/vulkan.hpp>
+#include <memory>
 
-class VulkanDevice;
+#include "VulkanDevice.hpp"
+
 class VulkanSwapchain;
+class VulkanImage;
 
 class VulkanImageView
 {
 public:
-    VulkanImageView();
-    VulkanImageView(std::shared_ptr<VulkanSwapchain> swapchain, VkImage swapchainImage, std::shared_ptr<VulkanDevice> device);
+    VulkanImageView(
+        std::shared_ptr<VulkanImage> image,
+        VkComponentMapping mapping = {VK_COMPONENT_SWIZZLE_IDENTITY, VK_COMPONENT_SWIZZLE_IDENTITY, VK_COMPONENT_SWIZZLE_IDENTITY, VK_COMPONENT_SWIZZLE_IDENTITY }
+    );
+
     ~VulkanImageView();
 
     VkImageView GetHandle() const;
+    std::shared_ptr<VulkanImage> GetImage() const;
+
+    VkExtent2D GetExtent() const;
 
 private:
     VkImageView m_ImageView;
-
-    std::shared_ptr<VulkanSwapchain> m_Swapchain;
-    std::shared_ptr<VulkanDevice> m_Device;
+    std::shared_ptr<VulkanImage> m_Image;
 };
