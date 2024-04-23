@@ -21,6 +21,8 @@
 #include "application/Vulkan/VulkanCommandBuffer.hpp"
 #include "application/Vulkan/VulkanViewport.hpp"
 #include "application/Vulkan/VulkanPipeline.hpp"
+#include "application/Vulkan/VulkanPipelineShaderStage.hpp"
+#include "application/Vulkan/VulkanPipelineDynamicState.hpp"
 
 #include "application/RenderingContext.hpp"
 
@@ -302,19 +304,33 @@ void RunApplication()
     std::vector<char> vertexShaderCode = ReadFile("shaders/vert.spv");
     std::vector<char> fragmentShaderCode = ReadFile("shaders/frag.spv");
 
-    VulkanShaderModule vertexShaderModule(device, vertexShaderCode);
-    VulkanShaderModule fragmentShaderModule(device, fragmentShaderCode);
+    std::shared_ptr<VulkanShaderModule> vertexShaderModule = std::make_shared<VulkanShaderModule>(device, vertexShaderCode);
+    std::shared_ptr<VulkanShaderModule> fragmentShaderModule = std::make_shared<VulkanShaderModule>(device, fragmentShaderCode);
 
+    VulkanPipelineShaderStage vss(
+        VK_SHADER_STAGE_VERTEX_BIT,
+        vertexShaderModule
+    );
+
+    VulkanPipelineShaderStage fss(
+        VK_SHADER_STAGE_FRAGMENT_BIT,
+        fragmentShaderModule
+    );
+
+    std::vector<VulkanPipelineShaderStage> shaderStages2({vss, fss});
+
+    VulkanPipelineDynamicState dynamicStates2({VK_DYNAMIC_STATE_VIEWPORT, VK_DYNAMIC_STATE_SCISSOR});
+    
     VkPipelineShaderStageCreateInfo vertexShaderStageInfo {};
     vertexShaderStageInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO;
     vertexShaderStageInfo.stage = VK_SHADER_STAGE_VERTEX_BIT;
-    vertexShaderStageInfo.module = vertexShaderModule.GetHandle();
+    vertexShaderStageInfo.module = vertexShaderModule->GetHandle();
     vertexShaderStageInfo.pName = "main";
 
     VkPipelineShaderStageCreateInfo fragmentShaderStageInfo {};
     fragmentShaderStageInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO;
     fragmentShaderStageInfo.stage = VK_SHADER_STAGE_FRAGMENT_BIT;
-    fragmentShaderStageInfo.module = fragmentShaderModule.GetHandle();
+    fragmentShaderStageInfo.module = fragmentShaderModule->GetHandle();
     fragmentShaderStageInfo.pName = "main";
 
     VkPipelineShaderStageCreateInfo shaderStages [] = { vertexShaderStageInfo, fragmentShaderStageInfo };
@@ -423,8 +439,6 @@ void RunApplication()
     pipelineInfo.subpass = 0;
     pipelineInfo.basePipelineHandle = VK_NULL_HANDLE; // These are optional
     pipelineInfo.basePipelineIndex = -1; // These are optional
-    
-    std::shared_ptr<VulkanPipeline> pipeline = std::make_shared<VulkanPipeline>();
 
     VkPipeline graphicsPipeline;
     VkResult createPipelineResult = vkCreateGraphicsPipelines(device->GetHandle(), VK_NULL_HANDLE, 1, &pipelineInfo, nullptr, &graphicsPipeline);
@@ -440,6 +454,8 @@ void RunApplication()
     {
         framebuffers.emplace_back(std::make_shared<VulkanFramebuffer>(renderPass, view));
     }
+
+    std::shared_ptr<VulkanPipeline> pipeline = std::make_shared<VulkanPipeline>();
 
     // std::vector<VkFramebuffer> swapChainFramebuffers;
     // swapChainFramebuffers.resize(imageViews.size());
