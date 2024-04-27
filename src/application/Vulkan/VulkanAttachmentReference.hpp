@@ -9,5 +9,5 @@ public:
         : VkAttachmentReference { attachment, layout }
     { }
 
-    operator const VkAttachmentReference*() const { return static_cast<const VkAttachmentReference*>(this); }
+    operator const VkAttachmentReference*() const { return this; }
 };

@@ -23,6 +23,13 @@
 #include "application/Vulkan/VulkanPipeline.hpp"
 #include "application/Vulkan/VulkanPipelineShaderStage.hpp"
 #include "application/Vulkan/VulkanPipelineDynamicState.hpp"
+#include "application/Vulkan/VulkanPipelineVertexInputState.hpp"
+#include "application/Vulkan/VulkanPipelineInputAssemblyState.hpp"
+#include "application/Vulkan/VulkanPipelineViewportState.hpp"
+#include "application/Vulkan/VulkanPipelineRasterizationState.hpp"
+#include "application/Vulkan/VulkanPipelineMultisampleState.hpp"
+#include "application/Vulkan/VulkanPipelineColorBlendAttachment.hpp"
+#include "application/Vulkan/VulkanPipelineColorBlendState.hpp"
 
 #include "application/RenderingContext.hpp"
 
@@ -320,6 +327,29 @@ void RunApplication()
     std::vector<VulkanPipelineShaderStage> shaderStages2({vss, fss});
 
     VulkanPipelineDynamicState dynamicStates2({VK_DYNAMIC_STATE_VIEWPORT, VK_DYNAMIC_STATE_SCISSOR});
+    VulkanPipelineVertexInputState vertexInput2;
+
+    VulkanPipelineInputAssemblyState inputAssembly2(VK_PRIMITIVE_TOPOLOGY_TRIANGLE_LIST, VK_FALSE);
+    
+    VkExtent2D extent = swapchain->GetExtent();
+
+    VulkanViewport viewport(0, 0, extent.width, extent.height, 0, 1.0f);
+
+    VulkanRect2D scissor(extent);
+
+    VulkanPipelineViewportState viewportstate2(viewport, scissor);
+
+    VulkanPipelineRasterizationState rasterizationState2(
+        VK_POLYGON_MODE_FILL,
+        VK_CULL_MODE_BACK_BIT,
+        false,
+        false,
+        VK_FRONT_FACE_CLOCKWISE,
+        false,
+        1.0f     
+    );
+    
+    VulkanPipelineMultisampleState multisample(1, false);
     
     VkPipelineShaderStageCreateInfo vertexShaderStageInfo {};
     vertexShaderStageInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO;
@@ -357,12 +387,6 @@ void RunApplication()
     inputAssembly.topology = VK_PRIMITIVE_TOPOLOGY_TRIANGLE_LIST;
     inputAssembly.primitiveRestartEnable = VK_FALSE;
 
-    VkExtent2D extent = swapchain->GetExtent();
-
-    VulkanViewport viewport(0, 0, extent.width, extent.height, 0, 1.0f);
-
-    VulkanRect2D scissor(extent);
-
     VkPipelineViewportStateCreateInfo viewportState {};
     viewportState.sType = VK_STRUCTURE_TYPE_PIPELINE_VIEWPORT_STATE_CREATE_INFO;
     viewportState.viewportCount = 1;
@@ -392,6 +416,23 @@ void RunApplication()
     multisampling.alphaToCoverageEnable = VK_FALSE; // These are optional
     multisampling.alphaToOneEnable = VK_FALSE; // These are optional
     
+    VulkanPipelineColorBlendAttachment cba(
+        true,
+        VK_COLOR_COMPONENT_R_BIT | VK_COLOR_COMPONENT_G_BIT | VK_COLOR_COMPONENT_B_BIT | VK_COLOR_COMPONENT_A_BIT,
+        VK_BLEND_FACTOR_SRC_ALPHA,
+        VK_BLEND_FACTOR_ONE_MINUS_SRC_ALPHA,
+        VK_BLEND_OP_ADD,
+        VK_BLEND_FACTOR_ONE,
+        VK_BLEND_FACTOR_ZERO,
+        VK_BLEND_OP_ADD
+    );
+
+    VulkanPipelineColorBlendState vpcbs(
+        false,
+        VK_LOGIC_OP_COPY,
+        {cba}
+    );
+
     VkPipelineColorBlendAttachmentState colorBlendAttachment {};
     colorBlendAttachment.colorWriteMask = VK_COLOR_COMPONENT_R_BIT | VK_COLOR_COMPONENT_G_BIT | VK_COLOR_COMPONENT_B_BIT | VK_COLOR_COMPONENT_A_BIT;
     colorBlendAttachment.blendEnable = VK_TRUE;

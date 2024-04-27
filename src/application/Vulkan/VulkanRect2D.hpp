@@ -17,5 +17,5 @@ public:
         : VkRect2D { {0, 0}, extent}
     {}
 
-    operator const VkRect2D*() const { return static_cast<const VkRect2D*>(this); }
+    operator const VkRect2D*() const { return this; }
 };

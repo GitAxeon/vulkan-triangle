@@ -46,5 +46,5 @@ public:
         this->pColorAttachments = *colorAttachment;
     }
 
-    operator const VkSubpassDescription*() const { return static_cast<const VkSubpassDescription*>(this); }
+    operator const VkSubpassDescription*() const { return this; }
 };

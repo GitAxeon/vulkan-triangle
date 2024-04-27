@@ -19,5 +19,5 @@ public:
         : VkViewport {x, y, width, height, minDepth, maxDepth }
     { }
 
-    operator const VkViewport*() const { return static_cast<const VkViewport*>(this); }
+    operator const VkViewport*() const { return this; }
 }; 

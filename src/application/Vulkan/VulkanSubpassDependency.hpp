@@ -18,5 +18,5 @@ public:
     {
     }
 
-    operator const VkSubpassDependency*() const { return static_cast<const VkSubpassDependency*>(this); }
+    operator const VkSubpassDependency*() const { return this; }
 };

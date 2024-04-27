@@ -19,5 +19,5 @@ public:
         : VkAttachmentDescription { 0, format, sampleCount, loadOp, storeOp, stencilLoadOp, stencilStoreOp, initialLayout, finalLayout }
     {}
 
-    constexpr operator const VkAttachmentDescription*() const { return static_cast<const VkAttachmentDescription*>(this); }
+    constexpr operator const VkAttachmentDescription*() const { return this; }
 };
