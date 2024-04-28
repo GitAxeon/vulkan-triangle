@@ -12,4 +12,6 @@ public:
         const char* entryPoint = "main",
         VkPipelineShaderStageCreateFlags createFlags = 0
     );
+
+    operator const VkPipelineShaderStageCreateInfo*() const { return this; }
 };

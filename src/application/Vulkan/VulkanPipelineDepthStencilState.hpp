@@ -11,9 +11,11 @@ public:
         VkCompareOp depthCompareOp,
         bool depthBoundsTestEnable,
         bool stencilTestEnable,
-        VkStencilOpState front,
-        VkStencilOpState back,
-        float minDepthBounds,
-        float maxDepthBounds
+        VkStencilOpState front = {},
+        VkStencilOpState back = {},
+        float minDepthBounds = 0.0f,
+        float maxDepthBounds = 1.0f
     );
+
+    operator const VkPipelineDepthStencilStateCreateInfo*() const { return this; }
 };

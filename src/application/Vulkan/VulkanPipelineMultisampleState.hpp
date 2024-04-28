@@ -14,4 +14,5 @@ public:
         bool alphaToOneEnable = false
     );
 
+    operator const VkPipelineMultisampleStateCreateInfo*() const { return this; }
 };

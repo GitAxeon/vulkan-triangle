@@ -18,4 +18,6 @@ public:
         float depthBiasSlopeFactor = 0.0f,
         VkPipelineRasterizationStateCreateFlags flags = 0
     );
+
+    operator const VkPipelineRasterizationStateCreateInfo*() const { return this; }
 };

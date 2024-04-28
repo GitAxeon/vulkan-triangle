@@ -11,7 +11,7 @@ VulkanPipelineColorBlendAttachment::VulkanPipelineColorBlendAttachment
     VkBlendOp alphaBlendOp
 ) : VkPipelineColorBlendAttachmentState
     {
-        blendEnable,
+        blendEnable ? VK_TRUE : VK_FALSE,
         srcColorBlendFactor,
         dstColorBlendFactor,
         colorBlendOp,

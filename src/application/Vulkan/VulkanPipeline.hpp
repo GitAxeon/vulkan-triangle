@@ -19,7 +19,7 @@ protected:
         std::shared_ptr<VulkanPipelineLayout> layout
     );
     
-private:
+protected:
     VkPipeline m_Pipeline;
     std::shared_ptr<VulkanDevice> m_Device;
 

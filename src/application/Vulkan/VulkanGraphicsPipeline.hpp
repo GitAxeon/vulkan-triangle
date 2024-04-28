@@ -30,8 +30,8 @@ public:
         const VulkanPipelineDynamicState& dynamicState,
         std::shared_ptr<VulkanPipelineLayout> layout,
         std::shared_ptr<VulkanRenderPass> renderPass,
-        uint32_t subpass,
+        int32_t subpass,
         std::shared_ptr<VulkanGraphicsPipeline> basePipeline = nullptr,
-        uint32_t basePipelineIndex = -1
+        int32_t basePipelineIndex = -1
     );
 };

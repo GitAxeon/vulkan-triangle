@@ -8,10 +8,10 @@ VulkanPipelineRasterizationState::VulkanPipelineRasterizationState(
     VkFrontFace frontFace,
     bool depthBiasEnable,
     float lineWidth,
-    float depthBiasConstantFactor = 0.0f,
-    float depthBiasClamp = 0.0f,
-    float depthBiasSlopeFactor = 0.0f,
-    VkPipelineRasterizationStateCreateFlags flags = 0
+    float depthBiasConstantFactor,
+    float depthBiasClamp,
+    float depthBiasSlopeFactor,
+    VkPipelineRasterizationStateCreateFlags flags
 ) : VkPipelineRasterizationStateCreateInfo
     {
         VK_STRUCTURE_TYPE_PIPELINE_RASTERIZATION_STATE_CREATE_INFO,
@@ -22,7 +22,7 @@ VulkanPipelineRasterizationState::VulkanPipelineRasterizationState(
         polygonMode,
         cullMode,
         frontFace,
-        depthBiasEnable,
+        depthBiasEnable ? VK_TRUE : VK_FALSE,
         depthBiasConstantFactor,
         depthBiasClamp,
         depthBiasSlopeFactor,

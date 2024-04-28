@@ -9,7 +9,7 @@ VulkanPipelineDynamicState::VulkanPipelineDynamicState
         VK_STRUCTURE_TYPE_PIPELINE_DYNAMIC_STATE_CREATE_INFO,
         VK_NULL_HANDLE,
         0,
-        states.size(),
+        static_cast<uint32_t>(states.size()),
         VK_NULL_HANDLE
     },
     m_States(states)

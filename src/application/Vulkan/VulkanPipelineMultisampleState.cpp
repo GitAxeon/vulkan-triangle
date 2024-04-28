@@ -3,10 +3,10 @@
 VulkanPipelineMultisampleState::VulkanPipelineMultisampleState(
     uint8_t sampleCount,
     bool sampleShadingEnable,
-    float minSampleShading = 1.0f,
-    const VkSampleMask* pSampleMask = VK_NULL_HANDLE,
-    bool alphaToCoverageEnable = false,
-    bool alphaToOneEnable = false
+    float minSampleShading,
+    const VkSampleMask* pSampleMask,
+    bool alphaToCoverageEnable,
+    bool alphaToOneEnable
 ) : VkPipelineMultisampleStateCreateInfo
     {
         VK_STRUCTURE_TYPE_PIPELINE_MULTISAMPLE_STATE_CREATE_INFO,

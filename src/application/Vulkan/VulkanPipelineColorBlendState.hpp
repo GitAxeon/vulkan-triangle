@@ -15,4 +15,6 @@ public:
         const std::vector<VulkanPipelineColorBlendAttachment>& attachments,
         const std::array<float, 4>& floats = {0, 0, 0, 0}
     );
+
+    operator const VkPipelineColorBlendStateCreateInfo*() const { return this; }
 };

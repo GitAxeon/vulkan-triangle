@@ -11,6 +11,7 @@ public:
     VulkanPipelineDynamicState(const VulkanPipelineDynamicState& other);
     VulkanPipelineDynamicState& operator=(const VulkanPipelineDynamicState& other);
     
+    operator const VkPipelineDynamicStateCreateInfo*() const { return this; }
 private:
     std::vector<VkDynamicState> m_States;
 };
