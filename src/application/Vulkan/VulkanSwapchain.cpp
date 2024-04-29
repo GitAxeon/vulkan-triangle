@@ -1,5 +1,6 @@
 #include "VulkanDevice.hpp"
 #include "VulkanSwapchain.hpp"
+#include "VulkanSemaphore.hpp"
 
 #include <limits>
 
@@ -202,4 +203,17 @@ void VulkanSwapchain::FetchSwapchainImages()
     {
         m_SwapchainImages.push_back(std::make_shared<VulkanSwapchainImage>(m_Device, images[i], m_SurfaceFormat.format, m_Extent, i));
     }
+}
+
+uint32_t VulkanSwapchain::AcquireNextImage(std::shared_ptr<VulkanSemaphore> semaphore) const
+{
+    uint32_t imageIndex;
+    VkResult result = vkAcquireNextImageKHR(m_Device->GetHandle(), m_Swapchain, UINT64_MAX, (semaphore ? semaphore->GetHandle() : VK_NULL_HANDLE), VK_NULL_HANDLE, &imageIndex);
+    
+    if(result != VK_SUCCESS)
+    {
+        Log.Error("Failed to acquire next swapchain image");
+    }
+
+    return imageIndex;
 }

@@ -1,5 +1,7 @@
 #include "VulkanDevice.hpp"
+
 #include "VulkanInstance.hpp"
+#include "VulkanQueue.hpp"
 
 VulkanDevice::VulkanDevice(std::shared_ptr<VulkanPhysicalDevice> physicalDevice, std::shared_ptr<VulkanDeviceRequirements> requirements)
     : m_Instance(physicalDevice->GetInstance()), m_PhysicalDevice(physicalDevice)
@@ -71,17 +73,23 @@ const SwapchainSupportDetails VulkanDevice::GetSwapchainSupportDetails(VkSurface
 }
 
 
-VkQueue VulkanDevice::GetQueue(const VulkanQueueRequest& request, int queueIndex)
+std::shared_ptr<VulkanQueue> VulkanDevice::GetQueue(const VulkanQueueRequest& request, int queueIndex)
 {
     if(queueIndex >= request.QueueLocations.size())
-        return VK_NULL_HANDLE;
+        return nullptr;
     
     QueueLocation loc = request.QueueLocations[queueIndex];
 
     VkQueue queue;
     vkGetDeviceQueue(m_Device, loc.FamilyIndex, loc.Index, &queue);
-    
-    return queue;
+
+    if(queue == VK_NULL_HANDLE)
+    {
+        Log.Error("GetDeviceQueue failed");
+    }
+
+    // VulkanQueue constructor is private so for that reason std::make_shared doesn't work here please do not the raw pointer =)
+    return std::shared_ptr<VulkanQueue>(new VulkanQueue(queue, shared_from_this(), loc.FamilyIndex, loc.Index));
 }
 
 std::vector<VkDeviceQueueCreateInfo> VulkanDevice::GenerateCreateInfos(std::map<uint32_t, QueueFamilyCreateInfo>& familyInfos)

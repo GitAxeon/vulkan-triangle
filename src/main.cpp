@@ -32,6 +32,7 @@
 #include "application/Vulkan/VulkanPipelineColorBlendState.hpp"
 #include "application/Vulkan/VulkanGraphicsPipeline.hpp"
 #include "application/Vulkan/VulkanPipelineDepthStencilState.hpp"
+#include "application/Vulkan/VulkanQueue.hpp"
 
 #include "application/RenderingContext.hpp"
 
@@ -123,18 +124,6 @@ void RecordCommandBuffer
     std::shared_ptr<VulkanPipeline> pipeline
 )
 {
-    // VkCommandBufferBeginInfo beginInfo {};
-    // beginInfo.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO;
-    // beginInfo.flags = 0; // Optional
-    // beginInfo.pInheritanceInfo = nullptr; // Optional
-
-    // VkResult commandBeginInfoResult = vkBeginCommandBuffer(commandBuffer->GetHandle(), &beginInfo);
-    // if(commandBeginInfoResult != VK_SUCCESS)
-    // {
-    //     Log.Error("Failed to begin recording command buffer");
-    //     throw std::runtime_error("Vulkan error");
-    // }
-
     commandBuffer->Begin();
     
     VkClearValue clearColor = {{{0.0f, 0.0f, 0.0f, 1.0f}}};
@@ -146,58 +135,24 @@ void RecordCommandBuffer
         VK_SUBPASS_CONTENTS_INLINE
      );
 
-    // VkRenderPassBeginInfo renderPassBeginInfo {};
-    // renderPassBeginInfo.sType = VK_STRUCTURE_TYPE_RENDER_PASS_BEGIN_INFO;
-    // renderPassBeginInfo.renderPass = renderPass->GetHandle();
-    // renderPassBeginInfo.framebuffer = frameBuffer->GetHandle();
-    // renderPassBeginInfo.renderArea.offset = {0, 0};
-    // renderPassBeginInfo.renderArea.extent = extent;
-
-    // renderPassBeginInfo.clearValueCount = 1;
-    // renderPassBeginInfo.pClearValues = &clearColor;
-
-    // vkCmdBeginRenderPass(commandBuffer, &renderPassBeginInfo, VK_SUBPASS_CONTENTS_INLINE);
-    // vkCmdBindPipeline(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, pipeline);
     commandBuffer->BindPipeline(pipeline, VK_PIPELINE_BIND_POINT_GRAPHICS);
-    
-
-    // VkViewport viewport {};
-    // viewport.x = 0.0f;
-    // viewport.y = 0.0f;
-    // viewport.width = static_cast<float>(extent.width);
-    // viewport.height = static_cast<float>(extent.height);
-    // viewport.minDepth = 0.0f;
-    // viewport.maxDepth = 1.0f;
 
     VulkanViewport viewport(0, 0, static_cast<float>(extent.width), static_cast<float>(extent.height), 0.0f, 1.0f);
     commandBuffer->SetViewport(viewport);
-    
-    // vkCmdSetViewport(commandBuffer, 0, 1, &viewport);
 
     VulkanRect2D scissor(extent);
     commandBuffer->SetScissor(scissor);
 
-    // vkCmdSetScissor(commandBuffer, 0, 1, scissor);
     commandBuffer->Draw(3, 0);
-    // vkCmdDraw(commandBuffer->GetHandle(), 3, 1, 0, 0);
 
-    // vkCmdEndRenderPass(commandBuffer);
     commandBuffer->EndRenderPass();
     commandBuffer->End();
-
-    // VkResult endCommandBufferResult =  vkEndCommandBuffer(commandBuffer);
-
-    // if(endCommandBufferResult != VK_SUCCESS)
-    // {
-    //     Log.Error("Failed to record command buffer end");
-    //     throw std::runtime_error("Vulkan error");
-    // }
 }
 
 void RunApplication()
 {
     WindowInfo info("Vulkan-triangle", 720, 300);
-
+ 
     SDLContextWrapper SDLContext;
     Log.Info("SDLContext Initialized");
     SDLContext.EnableVulkan();
@@ -232,7 +187,7 @@ void RunApplication()
     std::shared_ptr<VulkanDevice> device = selector->GetDevice();
 
     Log.Info("Requesting test queue");
-    VkQueue graphicsQueue = device->GetQueue(requirements->Queues[0], 0);
+    std::shared_ptr<VulkanQueue> graphicsQueue = device->GetQueue(requirements->Queues[0], 0);
 
     if(graphicsQueue == VK_NULL_HANDLE)
     {
@@ -291,24 +246,6 @@ void RunApplication()
 
     std::shared_ptr<VulkanRenderPass> renderPass = std::make_shared<VulkanRenderPass>(device, colorAttachment, subpass, subpassDependency);
 
-    // VkRenderPassCreateInfo renderPassInfo {};
-    // renderPassInfo.sType = VK_STRUCTURE_TYPE_RENDER_PASS_CREATE_INFO;
-    // renderPassInfo.attachmentCount = 1;
-    // renderPassInfo.pAttachments = colorAttachment;
-    // renderPassInfo.subpassCount = 1;
-    // renderPassInfo.pSubpasses = subpass;
-    // renderPassInfo.dependencyCount = 1;
-    // renderPassInfo.pDependencies = subpassDependency;
-
-    // VkRenderPass renderPass;
-    // VkResult createRenderPassResult = vkCreateRenderPass(device->GetHandle(), &renderPassInfo, nullptr, &renderPass);
-
-    // if(createRenderPassResult != VK_SUCCESS)
-    // {
-    //     Log.Error("Failed to create render pass");
-    //     throw std::runtime_error("Vulkan error");
-    // }
-
     // Load shaders
     std::vector<char> vertexShaderCode = ReadFile("shaders/vert.spv");
     std::vector<char> fragmentShaderCode = ReadFile("shaders/frag.spv");
@@ -316,22 +253,22 @@ void RunApplication()
     std::shared_ptr<VulkanShaderModule> vertexShaderModule = std::make_shared<VulkanShaderModule>(device, vertexShaderCode);
     std::shared_ptr<VulkanShaderModule> fragmentShaderModule = std::make_shared<VulkanShaderModule>(device, fragmentShaderCode);
 
-    VulkanPipelineShaderStage vss(
+    VulkanPipelineShaderStage vertexShaderStage(
         VK_SHADER_STAGE_VERTEX_BIT,
         vertexShaderModule
     );
 
-    VulkanPipelineShaderStage fss(
+    VulkanPipelineShaderStage fragmentShaderStage(
         VK_SHADER_STAGE_FRAGMENT_BIT,
         fragmentShaderModule
     );
 
-    std::vector<VulkanPipelineShaderStage> shaderStages2({vss, fss});
+    std::vector<VulkanPipelineShaderStage> shaderStages({vertexShaderStage, fragmentShaderStage});
 
-    VulkanPipelineDynamicState dynamicStates2({VK_DYNAMIC_STATE_VIEWPORT, VK_DYNAMIC_STATE_SCISSOR});
-    VulkanPipelineVertexInputState vertexInput2;
+    VulkanPipelineDynamicState dynamicStates({VK_DYNAMIC_STATE_VIEWPORT, VK_DYNAMIC_STATE_SCISSOR});
+    VulkanPipelineVertexInputState vertexInput;
 
-    VulkanPipelineInputAssemblyState inputAssembly2(VK_PRIMITIVE_TOPOLOGY_TRIANGLE_LIST, VK_FALSE);
+    VulkanPipelineInputAssemblyState inputAssembly(VK_PRIMITIVE_TOPOLOGY_TRIANGLE_LIST, VK_FALSE);
     
     VkExtent2D extent = swapchain->GetExtent();
 
@@ -339,9 +276,9 @@ void RunApplication()
 
     VulkanRect2D scissor(extent);
 
-    VulkanPipelineViewportState viewportstate2(viewport, scissor);
+    VulkanPipelineViewportState viewportstate(viewport, scissor);
 
-    VulkanPipelineRasterizationState rasterizationState2(
+    VulkanPipelineRasterizationState rasterizationState(
         VK_POLYGON_MODE_FILL,
         VK_CULL_MODE_BACK_BIT,
         false,
@@ -352,73 +289,8 @@ void RunApplication()
     );
     
     VulkanPipelineMultisampleState multisample(1, false);
-    
-    // VkPipelineShaderStageCreateInfo vertexShaderStageInfo {};
-    // vertexShaderStageInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO;
-    // vertexShaderStageInfo.stage = VK_SHADER_STAGE_VERTEX_BIT;
-    // vertexShaderStageInfo.module = vertexShaderModule->GetHandle();
-    // vertexShaderStageInfo.pName = "main";
 
-    // VkPipelineShaderStageCreateInfo fragmentShaderStageInfo {};
-    // fragmentShaderStageInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO;
-    // fragmentShaderStageInfo.stage = VK_SHADER_STAGE_FRAGMENT_BIT;
-    // fragmentShaderStageInfo.module = fragmentShaderModule->GetHandle();
-    // fragmentShaderStageInfo.pName = "main";
-
-    // VkPipelineShaderStageCreateInfo shaderStages [] = { vertexShaderStageInfo, fragmentShaderStageInfo };
-
-    // std::vector<VkDynamicState> dynamicStates = {
-    //     VK_DYNAMIC_STATE_VIEWPORT,
-    //     VK_DYNAMIC_STATE_SCISSOR
-    // };
-
-    // VkPipelineDynamicStateCreateInfo dynamicState {};
-    // dynamicState.sType = VK_STRUCTURE_TYPE_PIPELINE_DYNAMIC_STATE_CREATE_INFO;
-    // dynamicState.dynamicStateCount = static_cast<uint32_t>(dynamicStates.size());
-    // dynamicState.pDynamicStates = dynamicStates.data();
-
-    // VkPipelineVertexInputStateCreateInfo vertexInputInfo {};
-    // vertexInputInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_VERTEX_INPUT_STATE_CREATE_INFO;
-    // vertexInputInfo.vertexBindingDescriptionCount = 0;
-    // vertexInputInfo.pVertexBindingDescriptions = 0;
-    // vertexInputInfo.vertexAttributeDescriptionCount = 0;
-    // vertexInputInfo.pVertexAttributeDescriptions = nullptr;
-
-    // VkPipelineInputAssemblyStateCreateInfo inputAssembly {};
-    // inputAssembly.sType = VK_STRUCTURE_TYPE_PIPELINE_INPUT_ASSEMBLY_STATE_CREATE_INFO;
-    // inputAssembly.topology = VK_PRIMITIVE_TOPOLOGY_TRIANGLE_LIST;
-    // inputAssembly.primitiveRestartEnable = VK_FALSE;
-
-    // VkPipelineViewportStateCreateInfo viewportState {};
-    // viewportState.sType = VK_STRUCTURE_TYPE_PIPELINE_VIEWPORT_STATE_CREATE_INFO;
-    // viewportState.viewportCount = 1;
-    // viewportState.pViewports = viewport;
-    // viewportState.scissorCount = 1;
-    // viewportState.pScissors = scissor;
-
-    // VkPipelineRasterizationStateCreateInfo rasterizer {};
-    // rasterizer.sType = VK_STRUCTURE_TYPE_PIPELINE_RASTERIZATION_STATE_CREATE_INFO;
-    // rasterizer.depthClampEnable = VK_FALSE;
-    // rasterizer.rasterizerDiscardEnable = VK_FALSE;
-    // rasterizer.polygonMode = VK_POLYGON_MODE_FILL;
-    // rasterizer.lineWidth = 1.0f;
-    // rasterizer.cullMode = VK_CULL_MODE_BACK_BIT;
-    // rasterizer.frontFace = VK_FRONT_FACE_CLOCKWISE;
-    // rasterizer.depthBiasEnable = VK_FALSE;
-    // rasterizer.depthBiasConstantFactor = 0.0f; // These are optional
-    // rasterizer.depthBiasClamp = 0.0f; // These are optional
-    // rasterizer.depthBiasSlopeFactor = 0.0f; // These are optional
-
-    // VkPipelineMultisampleStateCreateInfo multisampling {};
-    // multisampling.sType = VK_STRUCTURE_TYPE_PIPELINE_MULTISAMPLE_STATE_CREATE_INFO;
-    // multisampling.sampleShadingEnable = VK_FALSE;
-    // multisampling.rasterizationSamples = VK_SAMPLE_COUNT_1_BIT;
-    // multisampling.minSampleShading = 1.0f; // These are optional
-    // multisampling.pSampleMask = nullptr; // These are optional
-    // multisampling.alphaToCoverageEnable = VK_FALSE; // These are optional
-    // multisampling.alphaToOneEnable = VK_FALSE; // These are optional
-    
-    VulkanPipelineColorBlendAttachment cba(
+    VulkanPipelineColorBlendAttachment colorBlendAttachment(
         true,
         VK_COLOR_COMPONENT_R_BIT | VK_COLOR_COMPONENT_G_BIT | VK_COLOR_COMPONENT_B_BIT | VK_COLOR_COMPONENT_A_BIT,
         VK_BLEND_FACTOR_SRC_ALPHA,
@@ -429,16 +301,15 @@ void RunApplication()
         VK_BLEND_OP_ADD
     );
 
-    std::vector<VulkanPipelineColorBlendAttachment> colorblendAttachments = {cba};
-    
-    VulkanPipelineColorBlendState vpcbs(
+    std::vector<VulkanPipelineColorBlendAttachment> colorblendAttachments = {colorBlendAttachment};
+
+    VulkanPipelineColorBlendState colorBlendState(
         false,
         VK_LOGIC_OP_COPY,
         colorblendAttachments
     );
 
-
-    VulkanPipelineDepthStencilState asd(
+    VulkanPipelineDepthStencilState depthStencilState(
         true,
         true,
         VK_COMPARE_OP_LESS,
@@ -455,105 +326,28 @@ void RunApplication()
 
     std::shared_ptr<VulkanPipelineLayout> pipelineLayout = std::make_shared<VulkanPipelineLayout>(device, pipelineLayoutInfo);
 
-    std::shared_ptr<VulkanGraphicsPipeline> vgp = std::make_shared<VulkanGraphicsPipeline>
+    std::shared_ptr<VulkanGraphicsPipeline> graphicsPipeline = std::make_shared<VulkanGraphicsPipeline>
     (
         device,
-        shaderStages2,
-        vertexInput2,
-        inputAssembly2,
-        viewportstate2,
-        rasterizationState2,
+        shaderStages,
+        vertexInput,
+        inputAssembly,
+        viewportstate,
+        rasterizationState,
         multisample,
-        asd,
-        vpcbs,
-        dynamicStates2,
+        depthStencilState,
+        colorBlendState,
+        dynamicStates,
         pipelineLayout,
         renderPass,
         0
     );
-
-    // VkPipelineColorBlendAttachmentState colorBlendAttachment {};
-    // colorBlendAttachment.colorWriteMask = VK_COLOR_COMPONENT_R_BIT | VK_COLOR_COMPONENT_G_BIT | VK_COLOR_COMPONENT_B_BIT | VK_COLOR_COMPONENT_A_BIT;
-    // colorBlendAttachment.blendEnable = VK_TRUE;
-    // colorBlendAttachment.srcColorBlendFactor = VK_BLEND_FACTOR_SRC_ALPHA;
-    // colorBlendAttachment.dstColorBlendFactor = VK_BLEND_FACTOR_ONE_MINUS_SRC_ALPHA;
-    // colorBlendAttachment.colorBlendOp = VK_BLEND_OP_ADD;
-    // colorBlendAttachment.srcAlphaBlendFactor = VK_BLEND_FACTOR_ONE;
-    // colorBlendAttachment.dstAlphaBlendFactor = VK_BLEND_FACTOR_ZERO;
-    // colorBlendAttachment.alphaBlendOp = VK_BLEND_OP_ADD;
-
-    // VkPipelineColorBlendStateCreateInfo colorBlending {};
-    // colorBlending.sType = VK_STRUCTURE_TYPE_PIPELINE_COLOR_BLEND_STATE_CREATE_INFO;
-    // colorBlending.logicOpEnable = VK_FALSE;
-    // colorBlending.logicOp = VK_LOGIC_OP_COPY;
-    // colorBlending.attachmentCount = 1;
-    // colorBlending.pAttachments = &colorBlendAttachment;
-    // colorBlending.blendConstants[0] = 0.0f; // These are optional
-    // colorBlending.blendConstants[1] = 0.0f; // These are optional
-    // colorBlending.blendConstants[2] = 0.0f; // These are optional
-    // colorBlending.blendConstants[3] = 0.0f; // These are optional
-
-    // VkGraphicsPipelineCreateInfo pipelineInfo {};
-    // pipelineInfo.sType = VK_STRUCTURE_TYPE_GRAPHICS_PIPELINE_CREATE_INFO;
-    // pipelineInfo.stageCount = 2;
-    // pipelineInfo.pStages = shaderStages;
-    // pipelineInfo.pVertexInputState = &vertexInputInfo;
-    // pipelineInfo.pInputAssemblyState = &inputAssembly;
-    // pipelineInfo.pViewportState = &viewportState;
-    // pipelineInfo.pRasterizationState = &rasterizer;
-    // pipelineInfo.pMultisampleState = &multisampling;
-    // pipelineInfo.pDepthStencilState = nullptr; // This is optional
-    // pipelineInfo.pColorBlendState = &colorBlending;
-    // pipelineInfo.pDynamicState = &dynamicState;
-    // pipelineInfo.layout = pipelineLayout.GetHandle();
-    // pipelineInfo.renderPass = renderPass->GetHandle();
-    // pipelineInfo.subpass = 0;
-    // pipelineInfo.basePipelineHandle = VK_NULL_HANDLE; // These are optional
-    // pipelineInfo.basePipelineIndex = -1; // These are optional
-
-    // VkPipeline graphicsPipeline;
-    // VkResult createPipelineResult = vkCreateGraphicsPipelines(device->GetHandle(), VK_NULL_HANDLE, 1, &pipelineInfo, nullptr, &graphicsPipeline);
-
-    // if(createPipelineResult != VK_SUCCESS)
-    // {
-    //     Log.Error("Failed to create graphics pipeline");
-    //     throw std::runtime_error("Vulkan error");
-    // }
 
     std::vector<std::shared_ptr<VulkanFramebuffer>> framebuffers;
     for(auto view : imageViews)
     {
         framebuffers.emplace_back(std::make_shared<VulkanFramebuffer>(renderPass, view));
     }
-
-    // std::shared_ptr<VulkanPipeline> pipeline = std::make_shared<VulkanPipeline>();
-
-    // std::vector<VkFramebuffer> swapChainFramebuffers;
-    // swapChainFramebuffers.resize(imageViews.size());
-
-    // for(size_t i = 0; i < imageViews.size(); i++)
-    // {
-    //     VkImageView attachments[] = {
-    //         imageViews[i]->GetHandle()
-    //     };
-
-    //     VkFramebufferCreateInfo framebufferInfo {};
-    //     framebufferInfo.sType = VK_STRUCTURE_TYPE_FRAMEBUFFER_CREATE_INFO;
-    //     framebufferInfo.renderPass = renderPass->GetHandle();
-    //     framebufferInfo.attachmentCount = 1;
-    //     framebufferInfo.pAttachments = attachments;
-    //     framebufferInfo.width = extent.width;
-    //     framebufferInfo.height = extent.height;
-    //     framebufferInfo.layers = 1;
-
-    //     VkResult createFramebufferResult = vkCreateFramebuffer(device->GetHandle(), &framebufferInfo, nullptr, &swapChainFramebuffers[i]);
-        
-    //     if(createFramebufferResult != VK_SUCCESS)
-    //     {
-    //         Log.Error("Failed to create framebuffer");
-    //         throw std::runtime_error("Vulkan error");
-    //     }
-    // }
 
     std::shared_ptr<VulkanCommandPool> commandPool = std::make_shared<VulkanCommandPool>
     (
@@ -565,10 +359,10 @@ void RunApplication()
     std::shared_ptr<VulkanCommandBuffer> commandBuffer = commandPool->CreatePrimaryBuffer();
 
     // Synchronization
-    VulkanSemaphore imageAvailableSem(device);
-    VulkanSemaphore renderFinishedSem(device);
+    std::shared_ptr<VulkanSemaphore> imageAvailableSem = std::make_shared<VulkanSemaphore>(device);
+    std::shared_ptr<VulkanSemaphore> renderFinishedSem = std::make_shared<VulkanSemaphore>(device);
 
-    VulkanFence inFlightFence(device, VK_FENCE_CREATE_SIGNALED_BIT);
+    std::shared_ptr<VulkanFence> inFlightFence = std::make_shared<VulkanFence>(device, VK_FENCE_CREATE_SIGNALED_BIT);
 
     Log.Info("Entering EventLoop");
     while(window.IsOpen())
@@ -590,56 +384,26 @@ void RunApplication()
         }
         // Rendering thingies?
         
-        inFlightFence.Wait();
-        inFlightFence.Reset();
+        inFlightFence->Wait();
+        inFlightFence->Reset();
 
-        uint32_t imageIndex;
-        vkAcquireNextImageKHR(device->GetHandle(), swapchain->GetHandle(), UINT64_MAX, imageAvailableSem.GetHandle(), VK_NULL_HANDLE, &imageIndex);
-
+        uint32_t imageIndex = swapchain->AcquireNextImage(imageAvailableSem);
         commandBuffer->Reset();
 
-        RecordCommandBuffer(commandBuffer, renderPass, framebuffers[imageIndex], extent, vgp);
+        RecordCommandBuffer(commandBuffer, renderPass, framebuffers[imageIndex], extent, graphicsPipeline);
 
-        VkSemaphore waitSemaphores[] = {imageAvailableSem.GetHandle()};
-        VkPipelineStageFlags waitStages[] = {VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT};
+        graphicsQueue->Submit(
+            commandBuffer,
+            VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT,
+            imageAvailableSem,
+            renderFinishedSem,
+            inFlightFence
+        );
 
-        VkSubmitInfo submitInfo {};
-        submitInfo.sType = VK_STRUCTURE_TYPE_SUBMIT_INFO;
-        submitInfo.waitSemaphoreCount = 1;
-        submitInfo.pWaitSemaphores = waitSemaphores;
-        submitInfo.pWaitDstStageMask = waitStages;
-        submitInfo.commandBufferCount = 1;
-        submitInfo.pCommandBuffers = &commandBuffer->GetHandleAddress();
-
-        VkSemaphore signalSemaphores[] = {renderFinishedSem.GetHandle()};
-        submitInfo.signalSemaphoreCount = 1;
-        submitInfo.pSignalSemaphores = signalSemaphores;
-
-        VkResult submitResult = vkQueueSubmit(graphicsQueue, 1, &submitInfo, inFlightFence.GetHandle());
-
-        if(submitResult != VK_SUCCESS)
-        {
-            Log.Error("Failed to submit draw command buffer");
-            throw std::runtime_error("Vulkan error");
-        }
-
-        VkPresentInfoKHR presentInfo {};
-        presentInfo.sType = VK_STRUCTURE_TYPE_PRESENT_INFO_KHR;
-        presentInfo.waitSemaphoreCount = 1;
-        presentInfo.pWaitSemaphores = signalSemaphores;
-
-        VkSwapchainKHR swapChains[] = {swapchain->GetHandle()};
-        presentInfo.swapchainCount = 1;
-        presentInfo.pSwapchains = swapChains;
-        presentInfo.pImageIndices = &imageIndex;
-        presentInfo.pResults = nullptr;
-
-        vkQueuePresentKHR(graphicsQueue, &presentInfo);
+        graphicsQueue->Present(imageIndex, swapchain, renderFinishedSem);
     }
-
+    
     device->WaitIdle();
-
-    // vkDestroyPipeline(device->GetHandle(), graphicsPipeline, nullptr);
 
     commandPool->DestroyCommandBuffer(commandBuffer);
 

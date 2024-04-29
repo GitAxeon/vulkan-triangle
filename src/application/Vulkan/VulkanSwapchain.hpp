@@ -43,6 +43,7 @@ public:
 
 class VulkanDevice;
 class VulkanSwapchainPreferences;
+class VulkanSemaphore;
 
 class VulkanSwapchain
 {
@@ -58,6 +59,8 @@ public:
     uint32_t GetImageCount() const { return m_ImageCount; }
     uint32_t QueryImageCount() const;
     std::vector<std::shared_ptr<VulkanSwapchainImage>> GetSwapchainImages() const;
+
+    uint32_t AcquireNextImage(std::shared_ptr<VulkanSemaphore> semaphore = nullptr) const;
 
 private:
     VkSurfaceFormatKHR SelectSurfaceFormat(const VkSurfaceKHR surface, const VkSurfaceFormatKHR& preference) const;

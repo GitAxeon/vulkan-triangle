@@ -12,7 +12,9 @@ struct QueueFamilyInfo
     std::vector<float> QueuePriorities;
 };
 
-class VulkanDevice
+class VulkanQueue;
+
+class VulkanDevice : public std::enable_shared_from_this<VulkanDevice>
 {
 public:
     VulkanDevice() = delete;
@@ -25,7 +27,7 @@ public:
     
     const SwapchainSupportDetails GetSwapchainSupportDetails(VkSurfaceKHR surface);
     
-    VkQueue GetQueue(const VulkanQueueRequest& request, int queueIndex);
+    std::shared_ptr<VulkanQueue> GetQueue(const VulkanQueueRequest& request, int queueIndex);
 
     bool WaitIdle() const;
 
