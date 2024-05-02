@@ -8,7 +8,13 @@
 
 VulkanQueue::VulkanQueue(VkQueue queue, std::shared_ptr<VulkanDevice> device, uint32_t familyIndex, uint32_t index)
     : m_Queue(queue), m_Device(device), m_FamilyIndex(familyIndex), m_Index(index)
+{   
+    Log.Info("Queue created");
+}
+
+VulkanQueue::~VulkanQueue()
 {
+    Log.Info("Queue destructed");
 }
 
 void VulkanQueue::Submit

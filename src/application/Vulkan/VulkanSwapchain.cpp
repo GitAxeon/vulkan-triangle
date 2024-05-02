@@ -62,6 +62,7 @@ VulkanSwapchain::VulkanSwapchain(std::shared_ptr<VulkanDevice> device, VkSurface
 VulkanSwapchain::~VulkanSwapchain()
 {
     vkDestroySwapchainKHR(m_Device->GetHandle(), m_Swapchain, nullptr);
+    Log.Info("Swapchain destructed");
 }
 
 std::vector<std::shared_ptr<VulkanSwapchainImage>> VulkanSwapchain::GetSwapchainImages() const

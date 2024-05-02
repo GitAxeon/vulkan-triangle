@@ -45,7 +45,12 @@ void VulkanCommandBuffer::BindPipeline(std::shared_ptr<VulkanPipeline> pipeline,
 
 void VulkanCommandBuffer::Reset(VkCommandBufferResetFlags flags)
 {
-    vkResetCommandBuffer(m_CommandBuffer, 0);
+    VkResult result = vkResetCommandBuffer(m_CommandBuffer, 0);
+
+    if(result != VK_SUCCESS)
+    {
+        Log.Error("CommandBuffer::Reset failed");
+    }
 }
 
 void VulkanCommandBuffer::BeginRenderPass

@@ -39,9 +39,10 @@ VulkanImageView::~VulkanImageView()
 {
     if(m_ImageView != VK_NULL_HANDLE)
     {
-        Log.Info("VulkanImageView destroyed");
         vkDestroyImageView(m_Image->GetDevice()->GetHandle(), m_ImageView, nullptr);
     }
+    
+    Log.Info("VulkanImageView destructed");
 }
 
 VkImageView VulkanImageView::GetHandle() const

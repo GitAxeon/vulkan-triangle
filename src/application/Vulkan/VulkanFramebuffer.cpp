@@ -28,11 +28,14 @@ VulkanFramebuffer::VulkanFramebuffer(std::shared_ptr<VulkanRenderPass> renderPas
         Log.Error("Failed to create framebuffer");
         throw std::runtime_error("Vulkan error");
     }
+
+     Log.Info("Framebuffer created");
 }
 
 VulkanFramebuffer::~VulkanFramebuffer()
 {
     vkDestroyFramebuffer(m_RenderPass->GetDevice()->GetHandle(), m_Framebuffer, nullptr);
+    Log.Info("Framebuffer destructed");
 }
 
 VkFramebuffer VulkanFramebuffer::GetHandle() const

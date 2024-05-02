@@ -74,7 +74,7 @@ std::vector<std::shared_ptr<VulkanCommandBuffer>> VulkanCommandPool::CreatePrima
         throw std::runtime_error("Vulkan error");
     }
 
-    std::vector<std::shared_ptr<VulkanCommandBuffer>> commandBuffers(bufferCount);
+    std::vector<std::shared_ptr<VulkanCommandBuffer>> commandBuffers;
 
     for(VkCommandBuffer bufferHandle : bufferHandles)
     {
@@ -90,7 +90,7 @@ void VulkanCommandPool::DestroyCommandBuffer(std::shared_ptr<VulkanCommandBuffer
     commandBuffer->m_CommandBuffer = VK_NULL_HANDLE;
 
     vkFreeCommandBuffers(m_Device->GetHandle(), m_CommandPool, 1, &handle);
-    Log.Info("CommandBuffer destroyed");
+    
     commandBuffer = nullptr;
 }
 

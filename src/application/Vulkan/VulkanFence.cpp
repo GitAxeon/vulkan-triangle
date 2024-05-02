@@ -14,11 +14,14 @@ VulkanFence::VulkanFence(std::shared_ptr<VulkanDevice> device, VkFenceCreateFlag
         Log.Error("Failed to create fence");
         throw std::runtime_error("Vulkan error");
     }
+
+    Log.Info("Fence created");
 }
 
 VulkanFence::~VulkanFence()
 {
     vkDestroyFence(m_Device->GetHandle(), m_Fence, nullptr);
+    Log.Info("Fence destructed");
 }
 
 VkResult VulkanFence::Wait(uint64_t timeout)

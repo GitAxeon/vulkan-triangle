@@ -34,4 +34,6 @@ public:
         std::shared_ptr<VulkanGraphicsPipeline> basePipeline = nullptr,
         int32_t basePipelineIndex = -1
     );
+    
+    ~VulkanGraphicsPipeline();
 };

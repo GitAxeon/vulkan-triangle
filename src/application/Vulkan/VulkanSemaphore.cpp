@@ -13,11 +13,14 @@ VulkanSemaphore::VulkanSemaphore(std::shared_ptr<VulkanDevice> device)
         Log.Error("Failed to create semaphore");
         throw std::runtime_error("Vulkan error");
     }
+
+    Log.Info("Semaphore created");
 }
 
 VulkanSemaphore::~VulkanSemaphore()
 {
     vkDestroySemaphore(m_Device->GetHandle(), m_Semaphore, nullptr);
+    Log.Info("Semaphore destructed");
 }
 
 VkSemaphore VulkanSemaphore::GetHandle() const

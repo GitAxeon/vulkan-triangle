@@ -25,11 +25,14 @@ VulkanRenderPass::VulkanRenderPass
         Log.Error("Failed to create render pass");
         throw std::runtime_error("Vulkan error");
     }
+
+    Log.Info("RenderPass created");
 }
 
 VulkanRenderPass::~VulkanRenderPass()
 {
     vkDestroyRenderPass(m_Device->GetHandle(), m_RenderPass, nullptr);
+    Log.Info("RenderPass destructed");
 }
 
 VkRenderPass VulkanRenderPass::GetHandle() const

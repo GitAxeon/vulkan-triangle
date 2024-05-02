@@ -35,6 +35,7 @@
 #include "application/Vulkan/VulkanQueue.hpp"
 
 #include "application/RenderingContext.hpp"
+#include "application/BasicClock.hpp"
 
 #include <SDL3/SDL.h>
 #include <glm/vec2.hpp>
@@ -42,6 +43,8 @@
 #include <Vulkan/vulkan.hpp>
 
 #include <fstream>
+#include <queue>
+#include <numeric>
 
 static std::vector<char> ReadFile(const std::string& filename)
 {
@@ -75,10 +78,11 @@ int main(int argc, char* argv[])
     try
     {
         RunApplication();
+        Log.Info("Application ate");
     }
     catch(std::exception& exception)
     {
-        Log.Error(exception.what());
+        Log.Error("Top level exception: ", exception.what());
         
         return (EXIT_FAILURE);
     }
@@ -151,12 +155,14 @@ void RecordCommandBuffer
 
 void RunApplication()
 {
-    WindowInfo info("Vulkan-triangle", 720, 300);
- 
+    const int MAX_CONCURRENT_FRAMES = 2;
+    
     SDLContextWrapper SDLContext;
     Log.Info("SDLContext Initialized");
     SDLContext.EnableVulkan();
     
+    const WindowInfo info("Vulkan-triangle", 720, 300);
+
     VulkanInstanceCreateInfo createInfo;
     createInfo.ApplicationName = info.Title;
     createInfo.EnableValidationLayers = true;
@@ -181,7 +187,7 @@ void RunApplication()
     requirements->Extensions.push_back(VK_KHR_SWAPCHAIN_EXTENSION_NAME);
 
     Log.Info("Creating device selector");
-    std::shared_ptr<VulkanDeviceSelector> selector = std::make_shared<VulkanDeviceSelector>(vulkanInstance, requirements);
+    std::unique_ptr<VulkanDeviceSelector> selector = std::make_unique<VulkanDeviceSelector>(vulkanInstance, requirements);
     
     Log.Info("Creating logical device");
     std::shared_ptr<VulkanDevice> device = selector->GetDevice();
@@ -199,7 +205,7 @@ void RunApplication()
     swapchainPreferences.SurfaceFormat.format = VK_FORMAT_B8G8R8A8_SRGB;
     swapchainPreferences.SurfaceFormat.colorSpace = VK_COLOR_SPACE_SRGB_NONLINEAR_KHR;
     swapchainPreferences.PresentMode = VK_PRESENT_MODE_MAILBOX_KHR;
-    swapchainPreferences.ImageCount = 2;
+    swapchainPreferences.ImageCount = MAX_CONCURRENT_FRAMES;
     swapchainPreferences.ImageUsage = VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT | VK_IMAGE_USAGE_TRANSFER_SRC_BIT;
     swapchainPreferences.SharingMode = VK_SHARING_MODE_CONCURRENT;
     swapchainPreferences.QueueFamilyIndices = requirements->Queues[0].GetFamilyIndices();
@@ -352,21 +358,49 @@ void RunApplication()
     std::shared_ptr<VulkanCommandPool> commandPool = std::make_shared<VulkanCommandPool>
     (
         device,
-        *requirements->Queues[0].GetFamilyIndices().begin(),
+        *requirements->Queues[0].GetFamilyIndices().begin(), // Cursed af xd
         VK_COMMAND_POOL_CREATE_RESET_COMMAND_BUFFER_BIT
     );
 
-    std::shared_ptr<VulkanCommandBuffer> commandBuffer = commandPool->CreatePrimaryBuffer();
+    // for concurrent frames
+    std::vector<std::shared_ptr<VulkanCommandBuffer>> commandBuffers = commandPool->CreatePrimaryBuffers(MAX_CONCURRENT_FRAMES);
+    
+    std::vector<std::shared_ptr<VulkanSemaphore>> imageAvailableSemaphores(MAX_CONCURRENT_FRAMES);
+    std::vector<std::shared_ptr<VulkanSemaphore>> renderFinishedSemaphores(MAX_CONCURRENT_FRAMES);
+    std::vector<std::shared_ptr<VulkanFence>> concurrencyFences(MAX_CONCURRENT_FRAMES);
 
-    // Synchronization
-    std::shared_ptr<VulkanSemaphore> imageAvailableSem = std::make_shared<VulkanSemaphore>(device);
-    std::shared_ptr<VulkanSemaphore> renderFinishedSem = std::make_shared<VulkanSemaphore>(device);
+    for(int i = 0; i < MAX_CONCURRENT_FRAMES; i++)
+    {
+        imageAvailableSemaphores[i] = (std::make_shared<VulkanSemaphore>(device));
+        renderFinishedSemaphores[i] = (std::make_shared<VulkanSemaphore>(device));
+        concurrencyFences[i] = (std::make_shared<VulkanFence>(device, VK_FENCE_CREATE_SIGNALED_BIT));
+    }
 
-    std::shared_ptr<VulkanFence> inFlightFence = std::make_shared<VulkanFence>(device, VK_FENCE_CREATE_SIGNALED_BIT);
+    uint32_t concurrentFrameIndex = 0;
+    // - for concurrent frames
+
+    std::deque<float> frameTimes;
+    const int MAX_RECORDED_FRAME_TIMES = 20;
 
     Log.Info("Entering EventLoop");
+
+    BasicClock clock;
     while(window.IsOpen())
     {
+        clock.Tick();
+
+        if(frameTimes.size() >= MAX_RECORDED_FRAME_TIMES)
+            frameTimes.pop_front();
+
+        float oneOverDeltaSeconds = 1.0f / clock.DeltaSeconds();
+        frameTimes.push_back(oneOverDeltaSeconds);
+
+        float averageFPS = std::accumulate(frameTimes.begin(), frameTimes.end(), 0.0f) / frameTimes.size();
+        std::string message = "FPS " + std::to_string(averageFPS);
+
+        Log.Info(message);
+        // SDL_SetWindowTitle(window.GetNativeWindow(), message.c_str());
+
         SDL_Event e;
         while(SDL_PollEvent(&e))
         {
@@ -382,30 +416,42 @@ void RunApplication()
                 } break;
             }
         }
-        // Rendering thingies?
         
-        inFlightFence->Wait();
-        inFlightFence->Reset();
+        if(!window.IsOpen())
+            Log.Info("Window close requested");
 
-        uint32_t imageIndex = swapchain->AcquireNextImage(imageAvailableSem);
-        commandBuffer->Reset();
+        auto renderBegin = clock.Now();
 
-        RecordCommandBuffer(commandBuffer, renderPass, framebuffers[imageIndex], extent, graphicsPipeline);
+        // Log.Info("Frame begun id: ", concurrentFrameIndex);
+        concurrencyFences[concurrentFrameIndex]->Wait();
+        concurrencyFences[concurrentFrameIndex]->Reset();
+        // Log.Info("Fence wait and reset");
+
+        uint32_t imageIndex = swapchain->AcquireNextImage(imageAvailableSemaphores[concurrentFrameIndex]);
+        // Log.Info("FrambufferImage acquired index: ", imageIndex);
+
+        commandBuffers[concurrentFrameIndex]->Reset();
+        // Log.Info("CommandBuffer reset");
+
+        RecordCommandBuffer(commandBuffers[concurrentFrameIndex], renderPass, framebuffers[imageIndex], extent, graphicsPipeline);
+        // Log.Info("CommandBuffer recorded");
 
         graphicsQueue->Submit(
-            commandBuffer,
+            commandBuffers[concurrentFrameIndex],
             VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT,
-            imageAvailableSem,
-            renderFinishedSem,
-            inFlightFence
+            imageAvailableSemaphores[concurrentFrameIndex],
+            renderFinishedSemaphores[concurrentFrameIndex],
+            concurrencyFences[concurrentFrameIndex]
         );
 
-        graphicsQueue->Present(imageIndex, swapchain, renderFinishedSem);
+        graphicsQueue->Present(imageIndex, swapchain, renderFinishedSemaphores[concurrentFrameIndex]);
+        // Log.Info("Rendering time ", clock.SecondsSince(renderBegin));
+        concurrentFrameIndex = (concurrentFrameIndex + 1) % MAX_CONCURRENT_FRAMES;
     }
     
     device->WaitIdle();
 
-    commandPool->DestroyCommandBuffer(commandBuffer);
+    commandPool->DestroyCommandBuffers(commandBuffers);
 
     Log.Info("Exiting EventLoop");
 }

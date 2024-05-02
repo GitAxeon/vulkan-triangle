@@ -11,6 +11,8 @@ class VulkanSwapchain;
 class VulkanQueue
 {
 public:
+    ~VulkanQueue();
+    
     void Submit(
         std::shared_ptr<VulkanCommandBuffer> commandBuffer,
         VkPipelineStageFlags waitStageMask,

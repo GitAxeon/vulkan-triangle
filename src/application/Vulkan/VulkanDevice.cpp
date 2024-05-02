@@ -58,13 +58,13 @@ VulkanDevice::VulkanDevice(std::shared_ptr<VulkanPhysicalDevice> physicalDevice,
         throw std::runtime_error("Graphics error");
     }
 
-    Log.Info("Created VulkanDevice");
+    Log.Info("Device created");
 }
 
 VulkanDevice::~VulkanDevice()
 {
     vkDestroyDevice(m_Device, nullptr);
-    Log.Info("Destructed VulkanDevice");
+    Log.Info("Device destructed");
 }
 
 const SwapchainSupportDetails VulkanDevice::GetSwapchainSupportDetails(VkSurfaceKHR surface)

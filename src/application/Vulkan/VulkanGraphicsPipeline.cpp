@@ -58,4 +58,11 @@ VulkanGraphicsPipeline::VulkanGraphicsPipeline
         Log.Error("Failed to create graphics pipeline");
         throw std::runtime_error("Vulkan error");
     }
+
+    Log.Info("GraphicsPipeline created");
+}
+
+VulkanGraphicsPipeline::~VulkanGraphicsPipeline()
+{
+    Log.Info("GraphicsPipeline destructed");
 }
