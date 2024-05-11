@@ -22,6 +22,11 @@ VulkanShaderModule::~VulkanShaderModule()
     vkDestroyShaderModule(m_Device->GetHandle(), m_ShaderModule, nullptr);
 }
 
+std::unique_ptr<VulkanShaderModule> VulkanShaderModule::Create(std::shared_ptr<VulkanDevice> device, const std::vector<char>& bytes)
+{
+    return std::make_unique<VulkanShaderModule>(device, bytes);
+}
+
 VkShaderModule VulkanShaderModule::GetHandle() const
 {
     return m_ShaderModule;

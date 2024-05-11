@@ -121,17 +121,18 @@ static VKAPI_ATTR VkBool32 VKAPI_CALL DebugCallback(
 
 void RecordCommandBuffer
 (
-    std::shared_ptr<VulkanCommandBuffer> commandBuffer,
-    std::shared_ptr<VulkanRenderPass> renderPass,
-    std::shared_ptr<VulkanFramebuffer> frameBuffer,
-    VkExtent2D extent,
-    std::shared_ptr<VulkanPipeline> pipeline
+    VulkanCommandBuffer& commandBuffer,
+    const VulkanRenderPass& renderPass,
+    const VulkanFramebuffer& frameBuffer,
+    const VulkanPipeline& pipeline
 )
 {
-    commandBuffer->Begin();
+    commandBuffer.Begin();
     
+    VkExtent2D extent = frameBuffer.GetExtent();
+
     VkClearValue clearColor = {{{0.0f, 0.0f, 0.0f, 1.0f}}};
-    commandBuffer->BeginRenderPass(
+    commandBuffer.BeginRenderPass(
         renderPass,
         frameBuffer,
         VulkanRect2D(0, 0, extent.width, extent.height),
@@ -139,19 +140,63 @@ void RecordCommandBuffer
         VK_SUBPASS_CONTENTS_INLINE
      );
 
-    commandBuffer->BindPipeline(pipeline, VK_PIPELINE_BIND_POINT_GRAPHICS);
+    commandBuffer.BindPipeline(pipeline, VK_PIPELINE_BIND_POINT_GRAPHICS);
 
     VulkanViewport viewport(0, 0, static_cast<float>(extent.width), static_cast<float>(extent.height), 0.0f, 1.0f);
-    commandBuffer->SetViewport(viewport);
+    commandBuffer.SetViewport(viewport);
 
     VulkanRect2D scissor(extent);
-    commandBuffer->SetScissor(scissor);
+    commandBuffer.SetScissor(scissor);
 
-    commandBuffer->Draw(3, 0);
+    commandBuffer.Draw(3, 0);
 
-    commandBuffer->EndRenderPass();
-    commandBuffer->End();
+    commandBuffer.EndRenderPass();
+    commandBuffer.End();
 }
+
+std::unique_ptr<VulkanSwapchain> CreateSwapchain(std::shared_ptr<VulkanDevice> device, const VkSurfaceKHR& surface, const VulkanSwapchainPreferences& preferences)
+{
+    return std::make_unique<VulkanSwapchain>(device, surface, preferences);
+}
+
+std::unique_ptr<VulkanSwapchain> RecreateSwapchain
+(
+    std::unique_ptr<VulkanSwapchain> swapchain,
+    const VkSurfaceKHR& surface,
+    const VulkanSwapchainPreferences& preferences,
+    std::shared_ptr<VulkanRenderPass> renderPass, 
+    std::vector<std::shared_ptr<VulkanFramebuffer>>& framebuffers,
+    std::vector<std::shared_ptr<VulkanSwapchainImage>>& swapchainImages,
+    std::vector<std::shared_ptr<VulkanImageView>>& imageViews
+)
+{
+    std::shared_ptr<VulkanDevice> device = swapchain->GetDevice();
+    device->WaitIdle();
+    
+    swapchain.reset();
+    swapchain = CreateSwapchain(device, surface, preferences);
+
+    swapchainImages.clear();
+    swapchainImages = swapchain->GetSwapchainImages();
+    
+    Log.Info("Swapchain image count: ", swapchainImages.size());
+
+    imageViews.clear();
+    for(std::shared_ptr<VulkanSwapchainImage> swapImage : swapchainImages)
+    {
+        imageViews.emplace_back(VulkanImageView::Create(swapImage));
+    }
+
+    framebuffers.clear();
+
+    for(auto view : imageViews)
+    {
+        framebuffers.emplace_back(std::make_shared<VulkanFramebuffer>(renderPass, view));
+    }
+
+    return swapchain;
+}
+
 
 void RunApplication()
 {
@@ -161,7 +206,7 @@ void RunApplication()
     Log.Info("SDLContext Initialized");
     SDLContext.EnableVulkan();
     
-    const WindowInfo info("Vulkan-triangle", 720, 300);
+    const WindowInfo info("Vulkan-triangle", 720, 300, SDL_WINDOW_VULKAN | SDL_WINDOW_RESIZABLE | SDL_WINDOW_HIGH_PIXEL_DENSITY);
 
     VulkanInstanceCreateInfo createInfo;
     createInfo.ApplicationName = info.Title;
@@ -170,7 +215,7 @@ void RunApplication()
     createInfo.Extensions.push_back(VK_EXT_DEBUG_UTILS_EXTENSION_NAME);
     createInfo.ValidationLayers = { "VK_LAYER_KHRONOS_validation" };
 
-    std::shared_ptr<VulkanInstance> vulkanInstance = std::make_shared<VulkanInstance>(createInfo);
+    std::shared_ptr<VulkanInstance> vulkanInstance = VulkanInstance::Create(createInfo);
     
     DebugUtilsMessenger debugMessenger(vulkanInstance, DebugCallback);
 
@@ -182,15 +227,15 @@ void RunApplication()
     req1.Surface = renderingContext.GetSurface();
     req1.Count = 1;
 
-    std::shared_ptr<VulkanDeviceRequirements> requirements = std::make_shared<VulkanDeviceRequirements>();
+    std::shared_ptr<VulkanDeviceRequirements> requirements = VulkanDeviceRequirements::Create();
     requirements->Queues.push_back(req1);
     requirements->Extensions.push_back(VK_KHR_SWAPCHAIN_EXTENSION_NAME);
 
     Log.Info("Creating device selector");
-    std::unique_ptr<VulkanDeviceSelector> selector = std::make_unique<VulkanDeviceSelector>(vulkanInstance, requirements);
+    VulkanDeviceSelector selector(vulkanInstance, requirements);
     
     Log.Info("Creating logical device");
-    std::shared_ptr<VulkanDevice> device = selector->GetDevice();
+    std::shared_ptr<VulkanDevice> device = selector.GetDevice();
 
     Log.Info("Requesting test queue");
     std::shared_ptr<VulkanQueue> graphicsQueue = device->GetQueue(requirements->Queues[0], 0);
@@ -211,7 +256,7 @@ void RunApplication()
     swapchainPreferences.QueueFamilyIndices = requirements->Queues[0].GetFamilyIndices();
     swapchainPreferences.CompositeAlpha = VK_COMPOSITE_ALPHA_OPAQUE_BIT_KHR;
 
-    std::shared_ptr<VulkanSwapchain> swapchain = std::make_shared<VulkanSwapchain>(device, renderingContext.GetSurface(), swapchainPreferences);
+    std::unique_ptr<VulkanSwapchain> swapchain = CreateSwapchain(device, renderingContext.GetSurface(), swapchainPreferences);
 
     std::vector<std::shared_ptr<VulkanSwapchainImage>> swapchainImages = swapchain->GetSwapchainImages();
     
@@ -220,7 +265,7 @@ void RunApplication()
     std::vector<std::shared_ptr<VulkanImageView>> imageViews;
     for(std::shared_ptr<VulkanSwapchainImage> swapImage : swapchainImages)
     {
-        imageViews.emplace_back(std::make_shared<VulkanImageView>(swapImage));
+        imageViews.emplace_back(VulkanImageView::Create(swapImage));
     }
 
     VulkanAttachmentDescription colorAttachment(
@@ -234,7 +279,7 @@ void RunApplication()
         VK_IMAGE_LAYOUT_PRESENT_SRC_KHR
     );
 
-    std::shared_ptr<VulkanAttachmentReference> colorAttachmentReference = std::make_shared<VulkanAttachmentReference>(0, VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL);
+    std::shared_ptr<VulkanAttachmentReference> colorAttachmentReference = VulkanAttachmentReference::Create(0, VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL);
     
     VulkanSubpassDescription subpass(
         colorAttachmentReference
@@ -249,15 +294,15 @@ void RunApplication()
         VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT,
         0
     );
-
-    std::shared_ptr<VulkanRenderPass> renderPass = std::make_shared<VulkanRenderPass>(device, colorAttachment, subpass, subpassDependency);
+    
+    std::shared_ptr<VulkanRenderPass> renderPass = VulkanRenderPass::Create(device, colorAttachment, subpass, subpassDependency);
 
     // Load shaders
     std::vector<char> vertexShaderCode = ReadFile("shaders/vert.spv");
     std::vector<char> fragmentShaderCode = ReadFile("shaders/frag.spv");
 
-    std::shared_ptr<VulkanShaderModule> vertexShaderModule = std::make_shared<VulkanShaderModule>(device, vertexShaderCode);
-    std::shared_ptr<VulkanShaderModule> fragmentShaderModule = std::make_shared<VulkanShaderModule>(device, fragmentShaderCode);
+    VulkanShaderModule vertexShaderModule(device, vertexShaderCode);
+    VulkanShaderModule fragmentShaderModule(device, fragmentShaderCode);
 
     VulkanPipelineShaderStage vertexShaderStage(
         VK_SHADER_STAGE_VERTEX_BIT,
@@ -330,9 +375,9 @@ void RunApplication()
     pipelineLayoutInfo.pushConstantRangeCount = 0; // These are optional
     pipelineLayoutInfo.pPushConstantRanges = nullptr; // These are optional
 
-    std::shared_ptr<VulkanPipelineLayout> pipelineLayout = std::make_shared<VulkanPipelineLayout>(device, pipelineLayoutInfo);
+    std::shared_ptr<VulkanPipelineLayout> pipelineLayout = VulkanPipelineLayout::Create(device, pipelineLayoutInfo);
 
-    std::shared_ptr<VulkanGraphicsPipeline> graphicsPipeline = std::make_shared<VulkanGraphicsPipeline>
+    VulkanGraphicsPipeline graphicsPipeline
     (
         device,
         shaderStages,
@@ -363,21 +408,23 @@ void RunApplication()
     );
 
     // for concurrent frames
-    std::vector<std::shared_ptr<VulkanCommandBuffer>> commandBuffers = commandPool->CreatePrimaryBuffers(MAX_CONCURRENT_FRAMES);
+    std::vector<std::unique_ptr<VulkanCommandBuffer>> commandBuffers = commandPool->CreatePrimaryBuffers(MAX_CONCURRENT_FRAMES);
     
-    std::vector<std::shared_ptr<VulkanSemaphore>> imageAvailableSemaphores(MAX_CONCURRENT_FRAMES);
-    std::vector<std::shared_ptr<VulkanSemaphore>> renderFinishedSemaphores(MAX_CONCURRENT_FRAMES);
-    std::vector<std::shared_ptr<VulkanFence>> concurrencyFences(MAX_CONCURRENT_FRAMES);
+    std::vector<std::unique_ptr<VulkanSemaphore>> imageAvailableSemaphores(MAX_CONCURRENT_FRAMES);
+    std::vector<std::unique_ptr<VulkanSemaphore>> renderFinishedSemaphores(MAX_CONCURRENT_FRAMES);
+    std::vector<std::unique_ptr<VulkanFence>> concurrencyFences(MAX_CONCURRENT_FRAMES);
 
     for(int i = 0; i < MAX_CONCURRENT_FRAMES; i++)
     {
-        imageAvailableSemaphores[i] = (std::make_shared<VulkanSemaphore>(device));
-        renderFinishedSemaphores[i] = (std::make_shared<VulkanSemaphore>(device));
-        concurrencyFences[i] = (std::make_shared<VulkanFence>(device, VK_FENCE_CREATE_SIGNALED_BIT));
+        imageAvailableSemaphores[i] = std::make_unique<VulkanSemaphore>(device);
+        renderFinishedSemaphores[i] = std::make_unique<VulkanSemaphore>(device);
+        concurrencyFences[i] = std::make_unique<VulkanFence>(device, VK_FENCE_CREATE_SIGNALED_BIT);
     }
 
     uint32_t concurrentFrameIndex = 0;
     // - for concurrent frames
+
+    bool framebufferResized = false;
 
     std::deque<float> frameTimes;
     const int MAX_RECORDED_FRAME_TIMES = 20;
@@ -392,13 +439,13 @@ void RunApplication()
         if(frameTimes.size() >= MAX_RECORDED_FRAME_TIMES)
             frameTimes.pop_front();
 
-        float oneOverDeltaSeconds = 1.0f / clock.DeltaSeconds();
+        const float oneOverDeltaSeconds = 1.0f / clock.DeltaSeconds();
         frameTimes.push_back(oneOverDeltaSeconds);
 
-        float averageFPS = std::accumulate(frameTimes.begin(), frameTimes.end(), 0.0f) / frameTimes.size();
+        const float averageFPS = std::accumulate(frameTimes.begin(), frameTimes.end(), 0.0f) / frameTimes.size();
         std::string message = "FPS " + std::to_string(averageFPS);
 
-        Log.Info(message);
+        // Log.Info(message);
         // SDL_SetWindowTitle(window.GetNativeWindow(), message.c_str());
 
         SDL_Event e;
@@ -414,6 +461,12 @@ void RunApplication()
                     if(e.key.keysym.sym == SDLK_ESCAPE)
                         window.Close();
                 } break;
+
+                case SDL_EVENT_WINDOW_RESIZED:
+                {
+                    framebufferResized = true;
+                    //swapchain = RecreateSwapchain(std::move(swapchain), renderingContext.GetSurface(), swapchainPreferences, renderPass, framebuffers);
+                } break;
             }
         }
         
@@ -422,29 +475,49 @@ void RunApplication()
 
         auto renderBegin = clock.Now();
 
-        // Log.Info("Frame begun id: ", concurrentFrameIndex);
         concurrencyFences[concurrentFrameIndex]->Wait();
-        concurrencyFences[concurrentFrameIndex]->Reset();
-        // Log.Info("Fence wait and reset");
 
-        uint32_t imageIndex = swapchain->AcquireNextImage(imageAvailableSemaphores[concurrentFrameIndex]);
-        // Log.Info("FrambufferImage acquired index: ", imageIndex);
+        VulkanSwapchain::AcquisitionResult swapchainAcquisition = swapchain->AcquireNextImage(imageAvailableSemaphores[concurrentFrameIndex].get());
+        VkResult swapchainState = swapchainAcquisition.Result;
+
+        if(swapchainState == VK_ERROR_OUT_OF_DATE_KHR || swapchainState == VK_SUBOPTIMAL_KHR || framebufferResized)
+        {
+            framebufferResized = false;
+
+            swapchain = RecreateSwapchain
+            (
+                std::move(swapchain),
+                renderingContext.GetSurface(),
+                swapchainPreferences,
+                renderPass,
+                framebuffers,
+                swapchainImages,
+                imageViews
+            );
+
+            continue;
+        }
+        else if(swapchainState != VK_SUCCESS)
+        {
+            Log.Error("Failed to acquire swapchain image");
+            throw std::runtime_error("Vulkan error");
+        }
+
+        concurrencyFences[concurrentFrameIndex]->Reset();
 
         commandBuffers[concurrentFrameIndex]->Reset();
-        // Log.Info("CommandBuffer reset");
 
-        RecordCommandBuffer(commandBuffers[concurrentFrameIndex], renderPass, framebuffers[imageIndex], extent, graphicsPipeline);
-        // Log.Info("CommandBuffer recorded");
+        RecordCommandBuffer(*commandBuffers[concurrentFrameIndex], *renderPass, *framebuffers[swapchainAcquisition.ImageIndex], graphicsPipeline);
 
         graphicsQueue->Submit(
-            commandBuffers[concurrentFrameIndex],
+            *commandBuffers[concurrentFrameIndex],
             VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT,
-            imageAvailableSemaphores[concurrentFrameIndex],
-            renderFinishedSemaphores[concurrentFrameIndex],
-            concurrencyFences[concurrentFrameIndex]
+            imageAvailableSemaphores[concurrentFrameIndex].get(),
+            renderFinishedSemaphores[concurrentFrameIndex].get(),
+            concurrencyFences[concurrentFrameIndex].get()
         );
 
-        graphicsQueue->Present(imageIndex, swapchain, renderFinishedSemaphores[concurrentFrameIndex]);
+        graphicsQueue->Present(swapchainAcquisition.ImageIndex, *swapchain, renderFinishedSemaphores[concurrentFrameIndex].get());
         // Log.Info("Rendering time ", clock.SecondsSince(renderBegin));
         concurrentFrameIndex = (concurrentFrameIndex + 1) % MAX_CONCURRENT_FRAMES;
     }

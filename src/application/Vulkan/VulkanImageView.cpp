@@ -45,6 +45,11 @@ VulkanImageView::~VulkanImageView()
     Log.Info("VulkanImageView destructed");
 }
 
+std::shared_ptr<VulkanImageView> VulkanImageView::Create(std::shared_ptr<VulkanImage> image, VkComponentMapping mapping)
+{
+    return std::make_shared<VulkanImageView>(image, mapping);
+}
+
 VkImageView VulkanImageView::GetHandle() const
 {
     return m_ImageView;

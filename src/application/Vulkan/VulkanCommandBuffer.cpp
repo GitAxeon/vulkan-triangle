@@ -38,9 +38,9 @@ void VulkanCommandBuffer::End()
     }
 }
 
-void VulkanCommandBuffer::BindPipeline(std::shared_ptr<VulkanPipeline> pipeline, VkPipelineBindPoint bindPoint)
+void VulkanCommandBuffer::BindPipeline(const VulkanPipeline& pipeline, VkPipelineBindPoint bindPoint)
 {
-    vkCmdBindPipeline(m_CommandBuffer, bindPoint, pipeline->GetHandle());
+    vkCmdBindPipeline(m_CommandBuffer, bindPoint, pipeline.GetHandle());
 }
 
 void VulkanCommandBuffer::Reset(VkCommandBufferResetFlags flags)
@@ -55,8 +55,8 @@ void VulkanCommandBuffer::Reset(VkCommandBufferResetFlags flags)
 
 void VulkanCommandBuffer::BeginRenderPass
 (
-    std::shared_ptr<VulkanRenderPass> renderPass,
-    std::shared_ptr<VulkanFramebuffer> frameBuffer,
+    const VulkanRenderPass& renderPass,
+    const VulkanFramebuffer& frameBuffer,
     VulkanRect2D renderArea,
     const VkClearValue& clearValue,
     VkSubpassContents subPassContents
@@ -64,8 +64,8 @@ void VulkanCommandBuffer::BeginRenderPass
 {
     VkRenderPassBeginInfo renderPassBeginInfo {};
     renderPassBeginInfo.sType = VK_STRUCTURE_TYPE_RENDER_PASS_BEGIN_INFO;
-    renderPassBeginInfo.renderPass = renderPass->GetHandle();
-    renderPassBeginInfo.framebuffer = frameBuffer->GetHandle();
+    renderPassBeginInfo.renderPass = renderPass.GetHandle();
+    renderPassBeginInfo.framebuffer = frameBuffer.GetHandle();
     renderPassBeginInfo.renderArea.offset = renderArea.offset;
     renderPassBeginInfo.renderArea.extent = renderArea.extent;
 

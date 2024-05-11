@@ -13,12 +13,16 @@ struct WindowInfo
     std::string Title;
     unsigned int Width;
     unsigned int Height;
+    uint32_t Flags;
 
     WindowInfo()
-        : Title("default"), Width(720), Height(300) {}
+        : Title("default"), Width(720), Height(300), Flags(0) {}
 
     WindowInfo(const std::string& title, unsigned int width, unsigned int height)
-        : Title(title), Width(width), Height(height) {}
+        : Title(title), Width(width), Height(height), Flags(0) {}
+
+    WindowInfo(const std::string& title, unsigned int width, unsigned int height, uint32_t windowFlags)
+        : Title(title), Width(width), Height(height), Flags(windowFlags) {}
 };
 
 class SDLWindowWrapper

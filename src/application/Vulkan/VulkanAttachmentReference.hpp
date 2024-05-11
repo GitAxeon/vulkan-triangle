@@ -9,5 +9,7 @@ public:
         : VkAttachmentReference { attachment, layout }
     { }
 
+    static std::shared_ptr<VulkanAttachmentReference> Create(uint32_t attachment, VkImageLayout layout);
+
     operator const VkAttachmentReference*() const { return this; }
 };

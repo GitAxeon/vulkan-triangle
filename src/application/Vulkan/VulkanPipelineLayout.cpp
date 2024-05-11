@@ -22,6 +22,11 @@ VulkanPipelineLayout::~VulkanPipelineLayout()
     Log.Info("PipelineLayout destructed");
 }
 
+std::shared_ptr<VulkanPipelineLayout> VulkanPipelineLayout::Create(std::shared_ptr<VulkanDevice> device, const VkPipelineLayoutCreateInfo& createInfo)
+{
+    return std::make_shared<VulkanPipelineLayout>(device, createInfo);
+}
+
 VkPipelineLayout VulkanPipelineLayout::GetHandle() const
 {
     return m_PipelineLayout;

@@ -35,6 +35,16 @@ VulkanRenderPass::~VulkanRenderPass()
     Log.Info("RenderPass destructed");
 }
 
+std::shared_ptr<VulkanRenderPass> VulkanRenderPass::Create(
+    std::shared_ptr<VulkanDevice> device,
+    const VulkanAttachmentDescription& attachment,
+    const VulkanSubpassDescription& subpass,
+    const VulkanSubpassDependency& dependency
+)
+{
+    return std::make_shared<VulkanRenderPass>(device, attachment, subpass, dependency);
+}
+
 VkRenderPass VulkanRenderPass::GetHandle() const
 {
     return m_RenderPass;

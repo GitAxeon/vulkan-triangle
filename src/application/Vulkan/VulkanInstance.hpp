@@ -31,6 +31,8 @@ public:
     VulkanInstance(const VulkanInstanceCreateInfo& createInfo);
     ~VulkanInstance();
 
+    static std::unique_ptr<VulkanInstance> Create(const VulkanInstanceCreateInfo& createInfo);
+
     VkInstance GetInstance() const;
 
     bool Debugging() const 

@@ -61,6 +61,8 @@ class VulkanDeviceRequirements
 public:
     VulkanDeviceRequirements() : Queues({}), Extensions({}) { };
 
+    static std::shared_ptr<VulkanDeviceRequirements> Create();
+
 public:
     std::vector<VulkanQueueRequest> Queues;
     std::vector<std::string> Extensions;

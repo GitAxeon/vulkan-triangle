@@ -17,6 +17,13 @@ public:
 
     ~VulkanRenderPass();
 
+    static std::shared_ptr<VulkanRenderPass> Create(
+        std::shared_ptr<VulkanDevice> device,
+        const VulkanAttachmentDescription& attachment,
+        const VulkanSubpassDescription& subpass,
+        const VulkanSubpassDependency& dependency
+    );
+
     VkRenderPass GetHandle() const;
     std::shared_ptr<VulkanDevice> GetDevice() const;
 

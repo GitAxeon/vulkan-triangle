@@ -1,5 +1,6 @@
 #include "VulkanDeviceRequirements.hpp"
 #include "../Debug/Log.hpp"
+
 std::set<uint32_t> VulkanQueueRequest::GetFamilyIndices()
 {
     std::set<uint32_t> indices;
@@ -20,6 +21,10 @@ void VulkanDeviceRequirements::FillQueuePrioritiesIfNeeded()
             request.Priorities.resize(request.Count, 1.0f);
 }
 
+std::shared_ptr<VulkanDeviceRequirements> VulkanDeviceRequirements::Create() 
+{
+    return std::make_shared<VulkanDeviceRequirements>();
+}
 std::map<uint32_t, QueueFamilyCreateInfo> VulkanDeviceRequirements::CombineQueueRequestIntoQueueFamilyCreateInfos()
 {
     FillQueuePrioritiesIfNeeded();

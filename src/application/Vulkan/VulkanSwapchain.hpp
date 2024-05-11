@@ -48,8 +48,16 @@ class VulkanSemaphore;
 class VulkanSwapchain
 {
 public:
+    struct AcquisitionResult
+    {
+        VkResult Result;
+        uint32_t ImageIndex;
+    };
+
     VulkanSwapchain(std::shared_ptr<VulkanDevice> device, VkSurfaceKHR surface, const VulkanSwapchainPreferences& preferences);
     ~VulkanSwapchain();
+    
+    static std::shared_ptr<VulkanSwapchain> Create(std::shared_ptr<VulkanDevice> device, VkSurfaceKHR surface, const VulkanSwapchainPreferences& preferences);
     
     std::shared_ptr<VulkanDevice> GetDevice() const { return m_Device; }
     VkSwapchainKHR GetHandle() const { return m_Swapchain; }
@@ -60,7 +68,7 @@ public:
     uint32_t QueryImageCount() const;
     std::vector<std::shared_ptr<VulkanSwapchainImage>> GetSwapchainImages() const;
 
-    uint32_t AcquireNextImage(std::shared_ptr<VulkanSemaphore> semaphore = nullptr) const;
+    AcquisitionResult AcquireNextImage(const VulkanSemaphore* semaphore = nullptr) const;
 
 private:
     VkSurfaceFormatKHR SelectSurfaceFormat(const VkSurfaceKHR surface, const VkSurfaceFormatKHR& preference) const;

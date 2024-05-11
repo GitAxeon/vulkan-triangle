@@ -12,6 +12,8 @@ public:
     VulkanShaderModule(std::shared_ptr<VulkanDevice> device, const std::vector<char>& bytes);
     ~VulkanShaderModule();
 
+    static std::unique_ptr<VulkanShaderModule> Create(std::shared_ptr<VulkanDevice> device, const std::vector<char>& bytes); 
+
     VkShaderModule GetHandle() const;
 
 private:

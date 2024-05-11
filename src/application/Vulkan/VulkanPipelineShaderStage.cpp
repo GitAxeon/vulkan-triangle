@@ -5,7 +5,7 @@
 VulkanPipelineShaderStage::VulkanPipelineShaderStage
 (
     VkShaderStageFlagBits shaderStageFlag,
-    std::shared_ptr<VulkanShaderModule> module,
+    const VulkanShaderModule& module,
     const char* entryPoint,
     VkPipelineShaderStageCreateFlags createFlags
 ) 
@@ -15,7 +15,7 @@ VulkanPipelineShaderStage::VulkanPipelineShaderStage
         VK_NULL_HANDLE,
         0,
         shaderStageFlag,
-        module->GetHandle(),
+        module.GetHandle(),
         entryPoint,
         VK_NULL_HANDLE
     }

@@ -56,6 +56,11 @@ VulkanDeviceSelector::VulkanDeviceSelector(std::shared_ptr<VulkanInstance> vulka
     m_Device = std::make_shared<VulkanDevice>(physicalDevices[bestDevice.DeviceIndex], m_DeviceRequirements);
 }
 
+std::unique_ptr<VulkanDeviceSelector> VulkanDeviceSelector::Create(std::shared_ptr<VulkanInstance> vulkanInstance, std::shared_ptr<VulkanDeviceRequirements> requirements)
+{
+    return std::make_unique<VulkanDeviceSelector>(vulkanInstance, requirements);
+}
+
 std::shared_ptr<VulkanDevice> VulkanDeviceSelector::GetDevice()
 {
     return m_Device;

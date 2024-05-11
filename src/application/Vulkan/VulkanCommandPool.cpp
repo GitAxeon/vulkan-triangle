@@ -31,7 +31,7 @@ VkCommandPool VulkanCommandPool::GetHandle() const
     return m_CommandPool;
 }
 
-std::shared_ptr<VulkanCommandBuffer> VulkanCommandPool::CreatePrimaryBuffer()
+std::unique_ptr<VulkanCommandBuffer> VulkanCommandPool::CreatePrimaryBuffer()
 {
     VkCommandBufferAllocateInfo allocInfo {};
     allocInfo.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_ALLOCATE_INFO;
@@ -51,12 +51,12 @@ std::shared_ptr<VulkanCommandBuffer> VulkanCommandPool::CreatePrimaryBuffer()
 
     Log.Info("Primary CommandBuffer created");
     
-    std::shared_ptr<VulkanCommandBuffer> commandBuffer = std::make_shared<VulkanCommandBuffer>(shared_from_this(), bufferHandle);
+    std::unique_ptr<VulkanCommandBuffer> commandBuffer = std::make_unique<VulkanCommandBuffer>(shared_from_this(), bufferHandle);
     
     return commandBuffer;   
 }
 
-std::vector<std::shared_ptr<VulkanCommandBuffer>> VulkanCommandPool::CreatePrimaryBuffers(uint32_t bufferCount)
+std::vector<std::unique_ptr<VulkanCommandBuffer>> VulkanCommandPool::CreatePrimaryBuffers(uint32_t bufferCount)
 {
     VkCommandBufferAllocateInfo allocInfo {};
     allocInfo.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_ALLOCATE_INFO;
@@ -74,17 +74,17 @@ std::vector<std::shared_ptr<VulkanCommandBuffer>> VulkanCommandPool::CreatePrima
         throw std::runtime_error("Vulkan error");
     }
 
-    std::vector<std::shared_ptr<VulkanCommandBuffer>> commandBuffers;
+    std::vector<std::unique_ptr<VulkanCommandBuffer>> commandBuffers;
 
     for(VkCommandBuffer bufferHandle : bufferHandles)
     {
-        commandBuffers.emplace_back(std::make_shared<VulkanCommandBuffer>(shared_from_this(), bufferHandle));
+        commandBuffers.emplace_back(std::make_unique<VulkanCommandBuffer>(shared_from_this(), bufferHandle));
     }
 
     return commandBuffers;
 }
 
-void VulkanCommandPool::DestroyCommandBuffer(std::shared_ptr<VulkanCommandBuffer> commandBuffer)
+void VulkanCommandPool::DestroyCommandBuffer(std::unique_ptr<VulkanCommandBuffer> commandBuffer)
 {
     VkCommandBuffer handle = commandBuffer->GetHandle();
     commandBuffer->m_CommandBuffer = VK_NULL_HANDLE;
@@ -94,7 +94,7 @@ void VulkanCommandPool::DestroyCommandBuffer(std::shared_ptr<VulkanCommandBuffer
     commandBuffer = nullptr;
 }
 
-void VulkanCommandPool::DestroyCommandBuffers(std::vector<std::shared_ptr<VulkanCommandBuffer>>& commandBuffers)
+void VulkanCommandPool::DestroyCommandBuffers(std::vector<std::unique_ptr<VulkanCommandBuffer>>& commandBuffers)
 {
     std::vector<VkCommandBuffer> bufferHandles(commandBuffers.size());
 

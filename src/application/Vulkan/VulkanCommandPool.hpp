@@ -10,11 +10,12 @@ public:
     VulkanCommandPool(std::shared_ptr<VulkanDevice> device, uint32_t queueFamilyIndex, VkCommandPoolCreateFlags flags = 0);
     ~VulkanCommandPool();
 
-    std::shared_ptr<VulkanCommandBuffer> CreatePrimaryBuffer();
-    std::vector<std::shared_ptr<VulkanCommandBuffer>> CreatePrimaryBuffers(uint32_t bufferCount);
+    std::unique_ptr<VulkanCommandBuffer> CreatePrimaryBuffer();
+    std::vector<std::unique_ptr<VulkanCommandBuffer>> CreatePrimaryBuffers(uint32_t bufferCount);
 
-    void DestroyCommandBuffer(std::shared_ptr<VulkanCommandBuffer> commandBuffer);
-    void DestroyCommandBuffers(std::vector<std::shared_ptr<VulkanCommandBuffer>>& commandBuffers);
+    void DestroyCommandBuffer(std::unique_ptr<VulkanCommandBuffer> commandBuffer);
+    void DestroyCommandBuffers(std::vector<std::unique_ptr<VulkanCommandBuffer>>& commandBuffers);
+    
     VkCommandPool GetHandle() const;
     std::shared_ptr<VulkanDevice> GetDevice() const;
 

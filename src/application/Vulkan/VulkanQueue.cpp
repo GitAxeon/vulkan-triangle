@@ -19,11 +19,11 @@ VulkanQueue::~VulkanQueue()
 
 void VulkanQueue::Submit
 (
-    std::shared_ptr<VulkanCommandBuffer> commandBuffer,
-    VkPipelineStageFlags waitStageMask = 0,
-    std::shared_ptr<VulkanSemaphore> waitSemaphore = nullptr,
-    std::shared_ptr<VulkanSemaphore> signalSemaphore = nullptr,
-    std::shared_ptr<VulkanFence> fence = nullptr
+    const VulkanCommandBuffer& commandBuffer,
+    VkPipelineStageFlags waitStageMask,
+    VulkanSemaphore* waitSemaphore,
+    VulkanSemaphore* signalSemaphore,
+    VulkanFence* fence
 )
 {
     VkSemaphore waitSemaphores[] = { waitSemaphore->GetHandle() };
@@ -35,7 +35,7 @@ void VulkanQueue::Submit
     submitInfo.pWaitSemaphores = waitSemaphores;
     submitInfo.pWaitDstStageMask = waitStages;
     submitInfo.commandBufferCount = 1;
-    submitInfo.pCommandBuffers = &commandBuffer->GetHandleAddress();
+    submitInfo.pCommandBuffers = &commandBuffer.GetHandleAddress();
 
     VkSemaphore signalSemaphores[] = {signalSemaphore->GetHandle()};
     submitInfo.signalSemaphoreCount = 1;
@@ -50,7 +50,7 @@ void VulkanQueue::Submit
     }
 }
 
-void VulkanQueue::Present(uint32_t imageIndex, std::shared_ptr<VulkanSwapchain> swapchain, std::shared_ptr<VulkanSemaphore> waitSemaphore)
+void VulkanQueue::Present(uint32_t imageIndex, const VulkanSwapchain& swapchain, VulkanSemaphore* waitSemaphore)
 {
     VkPresentInfoKHR presentInfo {};
     presentInfo.sType = VK_STRUCTURE_TYPE_PRESENT_INFO_KHR;
@@ -67,7 +67,7 @@ void VulkanQueue::Present(uint32_t imageIndex, std::shared_ptr<VulkanSwapchain> 
         presentInfo.pWaitSemaphores = nullptr;
     }
 
-    VkSwapchainKHR swapChains[] = {swapchain->GetHandle()};
+    VkSwapchainKHR swapChains[] = {swapchain.GetHandle()};
     presentInfo.swapchainCount = 1;
     presentInfo.pSwapchains = swapChains;
     presentInfo.pImageIndices = &imageIndex;

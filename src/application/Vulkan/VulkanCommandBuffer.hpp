@@ -18,13 +18,13 @@ public:
     
     bool Begin(VkCommandBufferUsageFlags flags = 0);
     void End();
-    void BindPipeline(std::shared_ptr<VulkanPipeline> pipeline, VkPipelineBindPoint bindPoint);
+    void BindPipeline(const VulkanPipeline& pipeline, VkPipelineBindPoint bindPoint);
 
     void Reset(VkCommandBufferResetFlags flags = 0);
 
     void BeginRenderPass(
-        std::shared_ptr<VulkanRenderPass> renderPass,
-        std::shared_ptr<VulkanFramebuffer> frameBuffer, 
+        const VulkanRenderPass& renderPass,
+        const VulkanFramebuffer& frameBuffer, 
         VulkanRect2D renderArea,
         const VkClearValue& clearValue,
         VkSubpassContents subPassContents

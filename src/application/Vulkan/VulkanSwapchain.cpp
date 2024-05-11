@@ -65,6 +65,11 @@ VulkanSwapchain::~VulkanSwapchain()
     Log.Info("Swapchain destructed");
 }
 
+std::shared_ptr<VulkanSwapchain> VulkanSwapchain::Create(std::shared_ptr<VulkanDevice> device, VkSurfaceKHR surface, const VulkanSwapchainPreferences& preferences)
+{
+    return std::make_shared<VulkanSwapchain>(device, surface, preferences);
+}
+
 std::vector<std::shared_ptr<VulkanSwapchainImage>> VulkanSwapchain::GetSwapchainImages() const
 {
     return m_SwapchainImages;
@@ -206,7 +211,7 @@ void VulkanSwapchain::FetchSwapchainImages()
     }
 }
 
-uint32_t VulkanSwapchain::AcquireNextImage(std::shared_ptr<VulkanSemaphore> semaphore) const
+VulkanSwapchain::AcquisitionResult VulkanSwapchain::AcquireNextImage(const VulkanSemaphore* semaphore) const
 {
     uint32_t imageIndex;
     VkResult result = vkAcquireNextImageKHR(m_Device->GetHandle(), m_Swapchain, UINT64_MAX, (semaphore ? semaphore->GetHandle() : VK_NULL_HANDLE), VK_NULL_HANDLE, &imageIndex);
@@ -216,5 +221,5 @@ uint32_t VulkanSwapchain::AcquireNextImage(std::shared_ptr<VulkanSemaphore> sema
         Log.Error("Failed to acquire next swapchain image");
     }
 
-    return imageIndex;
+    return { result, imageIndex };
 }

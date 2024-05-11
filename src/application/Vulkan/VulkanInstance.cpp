@@ -88,6 +88,11 @@ VulkanInstance::~VulkanInstance()
     vkDestroyInstance(m_Instance, nullptr);
 }
 
+std::unique_ptr<VulkanInstance> VulkanInstance::Create(const VulkanInstanceCreateInfo& createInfo)
+{
+    return std::make_unique<VulkanInstance>(createInfo);
+}
+
 VkInstance VulkanInstance::GetInstance() const
 { 
     return m_Instance;

@@ -29,7 +29,7 @@ VulkanFramebuffer::VulkanFramebuffer(std::shared_ptr<VulkanRenderPass> renderPas
         throw std::runtime_error("Vulkan error");
     }
 
-     Log.Info("Framebuffer created");
+    Log.Info("Framebuffer created");
 }
 
 VulkanFramebuffer::~VulkanFramebuffer()
@@ -43,3 +43,8 @@ VkFramebuffer VulkanFramebuffer::GetHandle() const
     return m_Framebuffer;
 }
 
+
+VkExtent2D VulkanFramebuffer::GetExtent() const
+{
+    return m_Extent;
+}

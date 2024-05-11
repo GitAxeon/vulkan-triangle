@@ -19,6 +19,8 @@ public:
     
     VulkanDeviceSelector(std::shared_ptr<VulkanInstance> vulkanInstance, std::shared_ptr<VulkanDeviceRequirements> requirements);
 
+    static std::unique_ptr<VulkanDeviceSelector> Create(std::shared_ptr<VulkanInstance> vulkanInstance, std::shared_ptr<VulkanDeviceRequirements> requirements);
+
     std::shared_ptr<VulkanDevice> GetDevice();
 
     std::shared_ptr<VulkanInstance> GetInstance() const { return m_Instance; }

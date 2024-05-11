@@ -14,6 +14,8 @@ public:
 
     VkFramebuffer GetHandle() const;
 
+    VkExtent2D GetExtent() const;
+
 private:
     VkFramebuffer m_Framebuffer;
     std::shared_ptr<VulkanRenderPass> m_RenderPass;

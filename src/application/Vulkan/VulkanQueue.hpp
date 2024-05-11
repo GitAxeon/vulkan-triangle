@@ -14,17 +14,17 @@ public:
     ~VulkanQueue();
     
     void Submit(
-        std::shared_ptr<VulkanCommandBuffer> commandBuffer,
-        VkPipelineStageFlags waitStageMask,
-        std::shared_ptr<VulkanSemaphore> waitSemaphore,
-        std::shared_ptr<VulkanSemaphore> signalSemaphore,
-        std::shared_ptr<VulkanFence> fence
+        const VulkanCommandBuffer& commandBuffer,
+        VkPipelineStageFlags waitStageMask = 0,
+        VulkanSemaphore* waitSemaphore = nullptr,
+        VulkanSemaphore* signalSemaphore = nullptr,
+        VulkanFence* fence = nullptr
     );
 
     void Present(
         uint32_t imageIndex,
-        std::shared_ptr<VulkanSwapchain> swapchain,
-        std::shared_ptr<VulkanSemaphore> waitSemaphore = nullptr
+        const VulkanSwapchain& swapchain,
+        VulkanSemaphore* waitSemaphore = nullptr
     );
 
 private:
