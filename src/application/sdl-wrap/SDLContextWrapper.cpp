@@ -37,30 +37,29 @@ void SDLContextWrapper::EnableVulkan()
 
 std::vector<const char*> SDLContextWrapper::GetVulkanInstanceExtensions()
 {
-    uint32_t SDLExtensionCount = 0;
-    SDL_bool extensionResult = SDL_Vulkan_GetInstanceExtensions(&SDLExtensionCount, nullptr);
+    uint32_t extensionCount = 0;
+    const char* const* instanceExtensions = SDL_Vulkan_GetInstanceExtensions(&extensionCount);
 
-    if(extensionResult == SDL_FALSE)
+    if(instanceExtensions == nullptr)
     {
-        Log.Error("SDL_Vulkan_GetInstanceExtensions failed for extension count");
+        Log.Error("SDL_Vulkan_GetInstanceExtensions failed");
         Log.Error("SDL Error:" , SDL_GetError());
 
-        throw std::runtime_error("Failed to retrieve Vulkan extensions");
+        throw std::runtime_error("Failed to retrieve Vulkan instance extensions");
     }
 
     std::vector<const char*> result;
-    result.resize(SDLExtensionCount);
+    result.reserve(extensionCount);
 
-    extensionResult = SDL_Vulkan_GetInstanceExtensions(&SDLExtensionCount, result.data()); 
-    
-    if(extensionResult == SDL_FALSE)
+    for(int i = 0; i < extensionCount; i++)
     {
-        Log.Error("SDL_Vulkan_GetInstanceExtensions for extension names failed");
-        Log.Error("SDL Error:" , SDL_GetError());
-        
-        throw std::runtime_error("Failed to retrieve Vulkan extensions");
-    }
+        size_t length = strlen(instanceExtensions[i]);
+        char* extensionCopy = new char[length + 1];
+        strcpy(extensionCopy, instanceExtensions[i]);
 
+        result.push_back(extensionCopy);
+    }
+    
     return result;
 }
 

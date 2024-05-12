@@ -29,7 +29,7 @@ SDL_Window* SDLWindowWrapper::GetNativeWindow() const
 VkSurfaceKHR SDLWindowWrapper::CreateVulkanSurface(VkInstance instance)
 {
     VkSurfaceKHR surface = nullptr;
-    SDL_bool result = SDL_Vulkan_CreateSurface(m_SDLWindow, instance, &surface);
+    SDL_bool result = SDL_Vulkan_CreateSurface(m_SDLWindow, instance, nullptr, &surface);
 
     if(result == SDL_FALSE)
     {

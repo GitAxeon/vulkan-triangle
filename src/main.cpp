@@ -138,7 +138,7 @@ void RecordCommandBuffer
         VulkanRect2D(0, 0, extent.width, extent.height),
         clearColor,
         VK_SUBPASS_CONTENTS_INLINE
-     );
+    );
 
     commandBuffer.BindPipeline(pipeline, VK_PIPELINE_BIND_POINT_GRAPHICS);
 
@@ -176,6 +176,12 @@ std::unique_ptr<VulkanSwapchain> RecreateSwapchain
     swapchain.reset();
     swapchain = CreateSwapchain(device, surface, preferences);
 
+    int width = 0;
+    int height = 0;
+    SwapchainSupportDetails details = device->GetSwapchainSupportDetails(surface);
+    VkExtent2D extent = details.Capabilities.currentExtent;
+    Log.Info("SwapchainDetails extent [", extent.width, ", ", extent.height, "]");
+
     swapchainImages.clear();
     swapchainImages = swapchain->GetSwapchainImages();
     
@@ -202,7 +208,7 @@ void RunApplication()
 {
     const int MAX_CONCURRENT_FRAMES = 2;
     
-    SDLContextWrapper SDLContext;
+    SDLContextWrapper SDLContext(SDL_INIT_VIDEO | SDL_INIT_EVENTS);
     Log.Info("SDLContext Initialized");
     SDLContext.EnableVulkan();
     
@@ -211,7 +217,7 @@ void RunApplication()
     VulkanInstanceCreateInfo createInfo;
     createInfo.ApplicationName = info.Title;
     createInfo.EnableValidationLayers = true;
-    createInfo.Extensions = SDLContext.GetVulkanInstanceExtensions();
+    createInfo.Extensions = SDLContext.GetVulkanInstanceExtensions(); // The pointers are not automatically deleted :^)
     createInfo.Extensions.push_back(VK_EXT_DEBUG_UTILS_EXTENSION_NAME);
     createInfo.ValidationLayers = { "VK_LAYER_KHRONOS_validation" };
 
@@ -220,6 +226,12 @@ void RunApplication()
     DebugUtilsMessenger debugMessenger(vulkanInstance, DebugCallback);
 
     Window window(info);
+
+    int width = 0;
+    int height = 0;
+    SDL_GetWindowMinimumSize(window.GetNativeWindow(), &width, &height);
+    Log.Info("Window minimum size [", width, ", ", height, "]");
+
     RenderingContext renderingContext(window, vulkanInstance);
 
     VulkanQueueRequest req1;
@@ -425,6 +437,7 @@ void RunApplication()
     // - for concurrent frames
 
     bool framebufferResized = false;
+    bool minimized = false;
 
     std::deque<float> frameTimes;
     const int MAX_RECORDED_FRAME_TIMES = 20;
@@ -460,18 +473,79 @@ void RunApplication()
                 {
                     if(e.key.keysym.sym == SDLK_ESCAPE)
                         window.Close();
-                } break;
+                    
+                    if(e.key.keysym.sym == SDLK_o)
+                    {
+                        int width = 0;
+                        int height = 0;
 
+                        SDL_GetWindowSizeInPixels(window.GetNativeWindow(), &width, &height);
+                        SDL_SetWindowSize(window.GetNativeWindow(), width, 1);
+                    }
+                } break;
+                case SDL_EVENT_WINDOW_PIXEL_SIZE_CHANGED:
+                {
+                    Log.Info("Size changed?");
+                } break;
                 case SDL_EVENT_WINDOW_RESIZED:
                 {
                     framebufferResized = true;
+                    int width = 0;
+                    int height = 0;
+
+                    int result = SDL_GetWindowSizeInPixels(window.GetNativeWindow(), &width, &height);
+                    if(result != 0)
+                        Log.Warn("GetWindowSizeInPixels failed");
+                    Log.Info("Window size changed [", width, ", ", height, "]"); 
+
+                    result = SDL_GetWindowSize(window.GetNativeWindow(), &width, &height);
+                    if(result != 0)
+                        Log.Warn("GetWindowSize failed");
+                    Log.Info("Window size changed [", width, ", ", height, "]");
+
+                    SwapchainSupportDetails details = device->GetSwapchainSupportDetails(renderingContext.GetSurface());
+                    VkExtent2D extent = details.Capabilities.currentExtent;
+                    Log.Info("SwapchainDetails extent [", extent.width, ", ", extent.height, "]");
+                    
+                    if(width == 0 || height == 0)
+                    {
+                        Log.Info("Minimized");
+                        minimized = true;
+                    }
+                    else
+                    {
+                        Log.Info("Not minimized");
+                        minimized = false;
+                    }
                     //swapchain = RecreateSwapchain(std::move(swapchain), renderingContext.GetSurface(), swapchainPreferences, renderPass, framebuffers);
+                } break;
+                case SDL_EVENT_WINDOW_MINIMIZED:
+                {
+                    Log.Info("Minimized"); 
+                    
+                    int result = SDL_GetWindowSizeInPixels(window.GetNativeWindow(), &width, &height);
+                    if(result != 0)
+                        Log.Warn("GetWindowSizeInPixels failed");
+                    Log.Info("Window size changed [", width, ", ", height, "]"); 
+                    
+                    minimized = true;
+                } break;
+                case SDL_EVENT_WINDOW_RESTORED:
+                {
+                    Log.Info("Restored");
+                    minimized = false;
                 } break;
             }
         }
         
         if(!window.IsOpen())
             Log.Info("Window close requested");
+
+        if(minimized)
+        {
+            Log.Info("...");
+            continue;
+        }
 
         auto renderBegin = clock.Now();
 
@@ -517,7 +591,32 @@ void RunApplication()
             concurrencyFences[concurrentFrameIndex].get()
         );
 
-        graphicsQueue->Present(swapchainAcquisition.ImageIndex, *swapchain, renderFinishedSemaphores[concurrentFrameIndex].get());
+        VkResult presentResult = graphicsQueue->Present(swapchainAcquisition.ImageIndex, *swapchain, renderFinishedSemaphores[concurrentFrameIndex].get());
+
+        if(presentResult == VK_ERROR_OUT_OF_DATE_KHR || presentResult == VK_SUBOPTIMAL_KHR)
+        {
+            if(presentResult == VK_ERROR_OUT_OF_DATE_KHR)
+                Log.Info("PresentResult out of date");
+            else
+                Log.Info("PresentResult suboptimal");
+            
+            swapchain = RecreateSwapchain
+            (
+                std::move(swapchain),
+                renderingContext.GetSurface(),
+                swapchainPreferences,
+                renderPass,
+                framebuffers,
+                swapchainImages,
+                imageViews
+            );            
+        }
+        else if(presentResult != VK_SUCCESS)
+        {
+            Log.Error("Failed to present swapchain image");
+            throw std::runtime_error("Vulkan error");
+        }
+
         // Log.Info("Rendering time ", clock.SecondsSince(renderBegin));
         concurrentFrameIndex = (concurrentFrameIndex + 1) % MAX_CONCURRENT_FRAMES;
     }

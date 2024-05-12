@@ -50,7 +50,7 @@ void VulkanQueue::Submit
     }
 }
 
-void VulkanQueue::Present(uint32_t imageIndex, const VulkanSwapchain& swapchain, VulkanSemaphore* waitSemaphore)
+VkResult VulkanQueue::Present(uint32_t imageIndex, const VulkanSwapchain& swapchain, VulkanSemaphore* waitSemaphore)
 {
     VkPresentInfoKHR presentInfo {};
     presentInfo.sType = VK_STRUCTURE_TYPE_PRESENT_INFO_KHR;
@@ -74,4 +74,6 @@ void VulkanQueue::Present(uint32_t imageIndex, const VulkanSwapchain& swapchain,
     presentInfo.pResults = nullptr;
 
     VkResult result = vkQueuePresentKHR(m_Queue, &presentInfo);
+
+    return result;
 }

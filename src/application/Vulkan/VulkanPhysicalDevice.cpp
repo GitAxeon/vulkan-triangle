@@ -87,7 +87,7 @@ void VulkanPhysicalDevice::QueryDeviceQueueFamilyInfos()
     }
 }
 
-const SwapchainSupportDetails VulkanPhysicalDevice::GetSwapchainSupportDetails(VkSurfaceKHR surface)
+SwapchainSupportDetails VulkanPhysicalDevice::GetSwapchainSupportDetails(VkSurfaceKHR surface)
 {
     SwapchainSupportDetails swapchainSupportDetails;
     vkGetPhysicalDeviceSurfaceCapabilitiesKHR(m_PhysicalDevice, surface, &swapchainSupportDetails.Capabilities);

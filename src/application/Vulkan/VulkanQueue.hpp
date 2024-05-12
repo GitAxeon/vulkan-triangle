@@ -21,7 +21,7 @@ public:
         VulkanFence* fence = nullptr
     );
 
-    void Present(
+    VkResult Present(
         uint32_t imageIndex,
         const VulkanSwapchain& swapchain,
         VulkanSemaphore* waitSemaphore = nullptr
